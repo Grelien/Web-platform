@@ -30,10 +30,10 @@ This is the **IoT platform frontend and backend** for the Grelien Agricultural A
 - Axios (for REST API communication)
 - Tailwind CSS / Material UI
 
----
+
 
 ## 📂 Project Structure
-
+```
 Web-platform/
 ├── backend/
 │ ├── mqtt/ # MQTT client logic
@@ -46,9 +46,8 @@ Web-platform/
 │ │ ├── pages/ # Pages (Dashboard, Scheduler)
 │ │ └── mqttClient.js # MQTT WebSocket logic
 └── README.md
+```
 
-
----
 
 ## 🚀 Getting Started
 
