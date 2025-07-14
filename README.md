@@ -75,7 +75,7 @@ cd ../frontend
 npm install
 npm start
 ```
-🧪 Development Notes
+## 🧪 Development Notes
 
     The MQTT broker URL and credentials are configured in mqttClient.js (both backend and frontend).
 
