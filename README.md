@@ -86,11 +86,13 @@ grelen/agro/sensor/humidity
 grelen/agro/motor/control
 grelen/agro/motor/schedule
 ```
-🤝 Contributing
+## 🤝 Contributing
 
 We welcome contributions from the community!
 Please fork the repository and submit a Pull Request.
 
-📜 License
+## 📜 License
 
-This project is open-source under the MIT License.
+All projects under Grelien are open-source and licensed under the [MIT License](https://opensource.org/licenses/MIT) unless otherwise stated.
+
+> Built with 💚 for the farmers of tomorrow.
