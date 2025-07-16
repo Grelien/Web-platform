@@ -394,8 +394,9 @@ function simulateSensorData() {
         systemState.sensorData.lastUpdated = new Date();
         
         // Publish simulated data
-        publishMQTT('agri/sensors/temperature', systemState.sensorData.temperature);
-        publishMQTT('agri/sensors/humidity', systemState.sensorData.humidity);
+        // publishMQTT('agri/sensors/temperature', systemState.sensorData.temperature);
+        // publishMQTT('agri/sensors/humidity', systemState.sensorData.humidity);
+        publishMQTT('agri/device/status','on');
     }, 10000); // Update every 10 seconds
 }
 
