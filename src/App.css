@@ -184,48 +184,91 @@ body {
   overflow-y: auto; /* Allow scrolling if needed */
 }
 
-/* Dashboard Grid */
+/* Dashboard Grid - Unified Perfect Alignment */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr; /* 3 equal columns for top row */
-  grid-template-rows: auto auto; /* Auto-sized rows */
+  grid-template-columns: 1fr 1fr 1fr; /* Three equal columns */
+  grid-template-rows: 340px 280px; /* Fixed row heights - reduced bottom row */
   gap: var(--spacing-xl);
   padding: var(--spacing-lg);
   max-width: 1400px;
   margin: 0 auto;
+  position: relative;
 }
 
-/* Make irrigation history card span full width on bottom row */
+/* Perfect alignment for top three cards */
+.sensor-card {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.motor-control {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.next-schedule {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+/* Irrigation history spans full width on bottom row */
 .irrigation-history-card {
-  grid-column: 1 / -1; /* Span all columns */
-  grid-row: 2; /* Bottom row */
-  max-height: 400px; /* Limit height so it doesn't take too much space */
+  grid-column: 1 / -1; /* Span all three columns */
+  grid-row: 2;
 }
 
-/* Responsive grid for smaller screens */
+/* Responsive adjustments */
 @media (max-width: 1200px) {
   .dashboard-grid {
-    grid-template-columns: 1fr 1fr; /* 2 columns on medium screens */
+    grid-template-columns: 1fr 1fr; /* Two columns on medium screens */
+    grid-template-rows: auto auto auto; /* Three rows */
+  }
+  
+  .sensor-card {
+    grid-column: 1;
+    grid-row: 1;
+    height: 320px;
+  }
+  
+  .motor-control {
+    grid-column: 2;
+    grid-row: 1;
+    height: 320px;
+  }
+  
+  .next-schedule {
+    grid-column: 1 / -1; /* Span full width */
+    grid-row: 2;
+    height: 280px;
   }
   
   .irrigation-history-card {
     grid-column: 1 / -1; /* Span full width */
+    grid-row: 3;
+    height: 300px;
   }
 }
 
 @media (max-width: 768px) {
   .dashboard-grid {
     grid-template-columns: 1fr; /* Single column on mobile */
+    grid-template-rows: repeat(4, auto); /* Four rows */
     padding: var(--spacing-md);
   }
   
-  .main-content {
-    padding: var(--spacing-md);
+  .sensor-card,
+  .motor-control,
+  .next-schedule,
+  .irrigation-history-card {
+    grid-column: 1;
+    height: 280px; /* Consistent height for mobile */
   }
   
-  .card {
-    min-height: 200px; /* Smaller on mobile */
-  }
+  .sensor-card { grid-row: 1; }
+  .motor-control { grid-row: 2; }
+  .next-schedule { grid-row: 3; }
+  .irrigation-history-card { grid-row: 4; }
 }
 
 /* Cards */
@@ -239,9 +282,10 @@ body {
   border: 1px solid var(--card-border);
   position: relative;
   overflow: hidden;
-  min-height: 280px; /* Reasonable minimum height */
   display: flex;
   flex-direction: column;
+  height: 100%; /* Fill the grid cell completely */
+  width: 100%; /* Fill the grid cell completely */
 }
 
 .card::before {
@@ -1027,4 +1071,244 @@ body {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Water Flow Animation for Active Irrigation - Water Effects Only */
+.water-animation-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+/* Water Droplet Styles */
+.water-droplet {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: linear-gradient(135deg, #00d9f5, #00a8cc);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(45deg);
+  opacity: 0;
+  box-shadow: 0 0 10px rgba(0, 217, 245, 0.6);
+  animation: waterFlow 4s linear infinite;
+}
+
+.water-droplet::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(135deg, rgba(0, 217, 245, 0.3), rgba(0, 168, 204, 0.3));
+  border-radius: 50% 50% 50% 0;
+  z-index: -1;
+}
+
+/* Different sizes for variety */
+.water-droplet.small {
+  width: 6px;
+  height: 6px;
+  animation-duration: 3.5s;
+}
+
+.water-droplet.medium {
+  width: 8px;
+  height: 8px;
+  animation-duration: 4s;
+}
+
+.water-droplet.large {
+  width: 10px;
+  height: 10px;
+  animation-duration: 4.5s;
+  box-shadow: 0 0 15px rgba(0, 217, 245, 0.8);
+}
+
+/* Water flow animation paths */
+@keyframes waterFlow {
+  0% {
+    opacity: 0;
+    transform: rotate(45deg) translateY(-20px) scale(0.5);
+  }
+  10% {
+    opacity: 1;
+    transform: rotate(45deg) translateY(0) scale(1);
+  }
+  90% {
+    opacity: 1;
+    transform: rotate(45deg) translateY(calc(100vh - 100px)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(45deg) translateY(calc(100vh - 80px)) scale(0.5);
+  }
+}
+
+/* Horizontal flow animation for connecting cards */
+@keyframes waterFlowHorizontal {
+  0% {
+    opacity: 0;
+    transform: rotate(45deg) translateX(-20px) scale(0.5);
+  }
+  10% {
+    opacity: 1;
+    transform: rotate(45deg) translateX(0) scale(1);
+  }
+  90% {
+    opacity: 1;
+    transform: rotate(45deg) translateX(calc(100vw - 100px)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(45deg) translateX(calc(100vw - 80px)) scale(0.5);
+  }
+}
+
+/* Diagonal flow animation */
+@keyframes waterFlowDiagonal {
+  0% {
+    opacity: 0;
+    transform: rotate(45deg) translate(-20px, -20px) scale(0.5);
+  }
+  10% {
+    opacity: 1;
+    transform: rotate(45deg) translate(0, 0) scale(1);
+  }
+  90% {
+    opacity: 1;
+    transform: rotate(45deg) translate(calc(100vw - 100px), calc(100vh - 100px)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(45deg) translate(calc(100vw - 80px), calc(100vh - 80px)) scale(0.5);
+  }
+}
+
+/* Water flow lines connecting cards */
+.water-flow-line {
+  position: absolute;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(0, 217, 245, 0.3), 
+    rgba(0, 217, 245, 0.8), 
+    rgba(0, 217, 245, 0.3), 
+    transparent
+  );
+  opacity: 0;
+  animation: flowLine 2s ease-in-out infinite;
+}
+
+@keyframes flowLine {
+  0%, 100% {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+/* Motor active state enhancements */
+.dashboard-grid.motor-active {
+  position: relative;
+}
+
+.dashboard-grid.motor-active::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  right: -5px;
+  bottom: -5px;
+  background: linear-gradient(45deg, 
+    rgba(0, 217, 245, 0.1), 
+    rgba(0, 168, 204, 0.1)
+  );
+  border-radius: var(--radius-2xl);
+  animation: waterGlow 3s ease-in-out infinite;
+  z-index: -1;
+}
+
+@keyframes waterGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(0, 217, 245, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(0, 217, 245, 0.4);
+  }
+}
+
+/* Card enhancements when motor is active */
+.dashboard-grid.motor-active .card {
+  position: relative;
+  overflow: visible;
+}
+
+.dashboard-grid.motor-active .card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 1px solid rgba(0, 217, 245, 0.3);
+  border-radius: var(--radius-xl);
+  animation: cardWaterEffect 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes cardWaterEffect {
+  0%, 100% {
+    border-color: rgba(0, 217, 245, 0.1);
+    box-shadow: 0 0 0 0 rgba(0, 217, 245, 0.1);
+  }
+  50% {
+    border-color: rgba(0, 217, 245, 0.4);
+    box-shadow: 0 0 20px 5px rgba(0, 217, 245, 0.2);
+  }
+}
+
+/* Specific droplet spawn points */
+.water-droplet.spawn-top-left {
+  top: 10%;
+  left: 5%;
+  animation-delay: 0s;
+}
+
+.water-droplet.spawn-top-center {
+  top: 5%;
+  left: 50%;
+  animation-delay: 0.5s;
+}
+
+.water-droplet.spawn-top-right {
+  top: 10%;
+  right: 5%;
+  animation-delay: 1s;
+}
+
+.water-droplet.spawn-middle-left {
+  top: 50%;
+  left: 2%;
+  animation-delay: 1.5s;
+}
+
+.water-droplet.spawn-middle-right {
+  top: 50%;
+  right: 2%;
+  animation-delay: 2s;
+}
+
+.water-droplet.spawn-center {
+  top: 40%;
+  left: 45%;
+  animation-delay: 2.5s;
 }

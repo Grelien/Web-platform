@@ -63,7 +63,7 @@ export default function IrrigationHistory({ onBackToDashboard, embedded = false 
 
   const getSourceIcon = (source: string) => {
     switch (source) {
-      case 'manual': return '👤';
+      case 'manual': return '🎮';
       case 'schedule': return '⏰';
       default: return '📡';
     }
@@ -86,23 +86,29 @@ export default function IrrigationHistory({ onBackToDashboard, embedded = false 
       {!embedded && (
         <div className="irrigation-history-header">
           <button className="back-button" onClick={onBackToDashboard}>
-            ← Back to Dashboard
+            <span style={{ fontSize: '1rem' }}>←</span> Back to Dashboard
           </button>
-          <h2>Irrigation History</h2>
+          <h2>
+            <span style={{ fontSize: '1.5rem', marginRight: '0.5rem' }}>💧</span>
+            Irrigation History
+          </h2>
         </div>
       )}
 
       {!embedded && (
         <div className="filter-controls">
-          <label>Filter by source:</label>
+          <label>
+            <span style={{ fontSize: '1rem', marginRight: '0.5rem' }}>🔍</span>
+            Filter by source:
+          </label>
           <select 
             value={filter} 
             onChange={(e) => setFilter(e.target.value as typeof filter)}
             className="filter-select"
           >
-            <option value="all">All Events</option>
-            <option value="manual">Manual Control</option>
-            <option value="schedule">Scheduled</option>
+            <option value="all">📈 All Events</option>
+            <option value="manual">🎮 Manual Control</option>
+            <option value="schedule">⏰ Scheduled</option>
           </select>
         </div>
       )}
@@ -110,16 +116,19 @@ export default function IrrigationHistory({ onBackToDashboard, embedded = false 
       {!embedded && (
         <div className="history-stats">
           <div className="stat-card">
+            <span className="stat-icon">📊</span>
             <span className="stat-label">Total Sessions</span>
             <span className="stat-value">{filteredEvents.length}</span>
           </div>
           <div className="stat-card">
+            <span className="stat-icon">✅</span>
             <span className="stat-label">Completed</span>
             <span className="stat-value" style={{ color: '#10b981' }}>
               {filteredEvents.filter(e => e.action === 'COMPLETED').length}
             </span>
           </div>
           <div className="stat-card">
+            <span className="stat-icon">⏱️</span>
             <span className="stat-label">Total Duration</span>
             <span className="stat-value" style={{ color: '#3b82f6' }}>
               {filteredEvents.reduce((sum, e) => sum + e.duration, 0)} min
@@ -129,12 +138,16 @@ export default function IrrigationHistory({ onBackToDashboard, embedded = false 
       )}
 
       {loading && (
-        <div className="loading">Loading irrigation history...</div>
+        <div className="loading">
+          <span style={{ fontSize: '1.2rem', marginRight: '0.5rem' }}>⌛</span>
+          Loading irrigation history...
+        </div>
       )}
 
       <div className="history-list">
         {displayEvents.length === 0 ? (
           <div className="no-events">
+            <span style={{ fontSize: '3rem', marginBottom: '1rem', display: 'block' }}>💧</span>
             <p>No irrigation events found.</p>
           </div>
         ) : (
@@ -153,7 +166,10 @@ export default function IrrigationHistory({ onBackToDashboard, embedded = false 
                   <span className="source-icon">{getSourceIcon(event.source)}</span>
                   <span className="source-label">{getSourceLabel(event.source)}</span>
                   {event.duration && (
-                    <span className="duration">({event.duration} min)</span>
+                    <span className="duration">
+                      <span style={{ fontSize: '0.9rem', marginRight: '0.25rem' }}>⏱️</span>
+                      ({event.duration} min)
+                    </span>
                   )}
                 </div>
               </div>
@@ -169,10 +185,12 @@ export default function IrrigationHistory({ onBackToDashboard, embedded = false 
             disabled={currentPage <= 1 || loading}
             className="pagination-button"
           >
+            <span style={{ fontSize: '1rem', marginRight: '0.5rem' }}>⬅️</span>
             Previous
           </button>
           
           <span className="pagination-info">
+            <span style={{ fontSize: '1rem', marginRight: '0.5rem' }}>📄</span>
             Page {currentPage} of {totalPages}
           </span>
           
@@ -182,6 +200,7 @@ export default function IrrigationHistory({ onBackToDashboard, embedded = false 
             className="pagination-button"
           >
             Next
+            <span style={{ fontSize: '1rem', marginLeft: '0.5rem' }}>➡️</span>
           </button>
         </div>
       )}
