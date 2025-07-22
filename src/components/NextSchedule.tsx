@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import type { Schedule } from '../types';
 import { Clock, Calendar } from 'lucide-react';
 
@@ -7,7 +7,7 @@ interface NextScheduleProps {
   onShowSchedules: () => void;
 }
 
-export function NextSchedule({ schedules, onShowSchedules }: NextScheduleProps) {
+export const NextSchedule = memo(function NextSchedule({ schedules, onShowSchedules }: NextScheduleProps) {
   const nextSchedule = useMemo(() => {
     const now = new Date();
     const currentTime = now.getHours() * 60 + now.getMinutes();
@@ -15,7 +15,7 @@ export function NextSchedule({ schedules, onShowSchedules }: NextScheduleProps) 
     
     // Filter active schedules
     const activeSchedules = schedules.filter(schedule => {
-      if (schedule.isDaily) return true;
+      if (schedule.frequency === 'daily') return true;
       return schedule.active;
     });
     
@@ -31,7 +31,7 @@ export function NextSchedule({ schedules, onShowSchedules }: NextScheduleProps) 
       const scheduleTime = parseInt(schedule.time.split(':')[0]) * 60 + parseInt(schedule.time.split(':')[1]);
       
       // For daily schedules, check if already executed today
-      if (schedule.isDaily && schedule.lastExecuted === today && scheduleTime <= currentTime) {
+      if (schedule.frequency === 'daily' && schedule.lastExecuted === today && scheduleTime <= currentTime) {
         continue;
       }
       
@@ -42,7 +42,7 @@ export function NextSchedule({ schedules, onShowSchedules }: NextScheduleProps) 
 
     // If no schedule found for today, take the first one for tomorrow
     if (sortedSchedules.length > 0) {
-      const dailySchedules = sortedSchedules.filter(s => s.isDaily);
+      const dailySchedules = sortedSchedules.filter(s => s.frequency === 'daily');
       return dailySchedules.length > 0 ? dailySchedules[0] : sortedSchedules[0];
     }
 
@@ -61,7 +61,7 @@ export function NextSchedule({ schedules, onShowSchedules }: NextScheduleProps) 
           <>
             <div className="next-schedule-time">{nextSchedule.time}</div>
             <div className="next-schedule-action">
-              {nextSchedule.isDaily ? (
+              {nextSchedule.frequency === 'daily' ? (
                 <div className="schedule-type">
                   <Calendar size={16} />
                   Daily watering
@@ -85,4 +85,4 @@ export function NextSchedule({ schedules, onShowSchedules }: NextScheduleProps) 
       </div>
     </div>
   );
-}
+});

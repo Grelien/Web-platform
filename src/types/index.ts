@@ -4,13 +4,29 @@ export interface SensorData {
   lastUpdated: Date;
 }
 
+export interface IrrigationEvent {
+  id: string;
+  timestamp: string;
+  endTime: string;
+  action: 'COMPLETED';
+  source: 'manual' | 'schedule';
+  duration: number; // in minutes
+  scheduleId?: number | null;
+  scheduleDetails?: {
+    frequency: 'daily' | 'weekly';
+    date?: string | null;
+    time: string;
+  };
+}
+
 export interface Schedule {
   id: number;
   time: string;
+  date?: string; // Optional date field for one-time schedules
   action: 'on' | 'off';
   duration: number;
+  frequency: 'daily' | 'weekly'; // Schedule frequency
   active: boolean;
-  isDaily: boolean;
   lastExecuted?: string;
   createdAt: string;
 }
@@ -21,6 +37,7 @@ export interface SystemState {
   sensorData: SensorData;
   schedules: Schedule[];
   logs: LogEntry[];
+  irrigationHistory: IrrigationEvent[];
 }
 
 export interface LogEntry {
@@ -29,7 +46,7 @@ export interface LogEntry {
 }
 
 export interface SSEMessage {
-  type: 'initial' | 'sensorData' | 'motorStatus' | 'heartbeat' | 'statusUpdate';
+  type: 'initial' | 'sensorData' | 'motorStatus' | 'heartbeat' | 'statusUpdate' | 'irrigationEvent';
   temperature?: number;
   humidity?: number;
   lastUpdated?: string;
@@ -39,6 +56,8 @@ export interface SSEMessage {
   lastSensorDataTime?: string | null;
   timestamp?: string;
   sensorData?: SensorData;
+  irrigationHistory?: IrrigationEvent[];
+  event?: IrrigationEvent;
 }
 
 export interface MotorControlRequest {

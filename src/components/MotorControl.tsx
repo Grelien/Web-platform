@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo, useCallback, useMemo } from 'react';
 import { useIoT } from '../contexts/IoTContext';
 import { Power, Square } from 'lucide-react';
 
@@ -6,11 +6,12 @@ interface MotorControlProps {
   motorState: boolean;
 }
 
-export function MotorControl({ motorState }: MotorControlProps) {
+export const MotorControl = memo(function MotorControl({ motorState }: MotorControlProps) {
   const { controlMotor } = useIoT();
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleMotorControl = async (action: 'on' | 'off') => {
+  // Memoized motor control handler
+  const handleMotorControl = useCallback(async (action: 'on' | 'off') => {
     setIsLoading(true);
     try {
       await controlMotor(action);
@@ -19,7 +20,27 @@ export function MotorControl({ motorState }: MotorControlProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [controlMotor]);
+
+  // Memoized status display
+  const statusDisplay = useMemo(() => ({
+    text: motorState ? 'ON' : 'OFF',
+    className: `motor-status-value ${motorState ? 'on' : 'off'}`
+  }), [motorState]);
+
+  // Memoized button states
+  const buttonStates = useMemo(() => ({
+    onButton: {
+      className: `motor-btn motor-btn--on ${isLoading ? 'loading' : ''}`,
+      disabled: isLoading || motorState,
+      onClick: () => handleMotorControl('on')
+    },
+    offButton: {
+      className: `motor-btn motor-btn--off ${isLoading ? 'loading' : ''}`,
+      disabled: isLoading || !motorState,
+      onClick: () => handleMotorControl('off')
+    }
+  }), [isLoading, motorState, handleMotorControl]);
 
   return (
     <div className="card">
@@ -30,25 +51,25 @@ export function MotorControl({ motorState }: MotorControlProps) {
       
       <div className="motor-status">
         <div className="motor-status-label">Status</div>
-        <div className={`motor-status-value ${motorState ? 'on' : 'off'}`}>
-          {motorState ? 'ON' : 'OFF'}
+        <div className={statusDisplay.className}>
+          {statusDisplay.text}
         </div>
       </div>
       
       <div className="motor-controls">
         <button 
-          className={`motor-btn motor-btn--on ${isLoading ? 'loading' : ''}`}
-          onClick={() => handleMotorControl('on')}
-          disabled={isLoading || motorState}
+          className={buttonStates.onButton.className}
+          onClick={buttonStates.onButton.onClick}
+          disabled={buttonStates.onButton.disabled}
         >
           <Power size={20} />
           TURN ON
         </button>
         
         <button 
-          className={`motor-btn motor-btn--off ${isLoading ? 'loading' : ''}`}
-          onClick={() => handleMotorControl('off')}
-          disabled={isLoading || !motorState}
+          className={buttonStates.offButton.className}
+          onClick={buttonStates.offButton.onClick}
+          disabled={buttonStates.offButton.disabled}
         >
           <Square size={20} />
           TURN OFF
@@ -56,4 +77,4 @@ export function MotorControl({ motorState }: MotorControlProps) {
       </div>
     </div>
   );
-}
+});

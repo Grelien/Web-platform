@@ -180,13 +180,52 @@ body {
 /* Main Content */
 .main-content {
   padding: var(--spacing-xl);
+  min-height: calc(100vh - 120px);
+  overflow-y: auto; /* Allow scrolling if needed */
 }
 
 /* Dashboard Grid */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: 1fr 1fr 1fr; /* 3 equal columns for top row */
+  grid-template-rows: auto auto; /* Auto-sized rows */
   gap: var(--spacing-xl);
+  padding: var(--spacing-lg);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Make irrigation history card span full width on bottom row */
+.irrigation-history-card {
+  grid-column: 1 / -1; /* Span all columns */
+  grid-row: 2; /* Bottom row */
+  max-height: 400px; /* Limit height so it doesn't take too much space */
+}
+
+/* Responsive grid for smaller screens */
+@media (max-width: 1200px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr 1fr; /* 2 columns on medium screens */
+  }
+  
+  .irrigation-history-card {
+    grid-column: 1 / -1; /* Span full width */
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr; /* Single column on mobile */
+    padding: var(--spacing-md);
+  }
+  
+  .main-content {
+    padding: var(--spacing-md);
+  }
+  
+  .card {
+    min-height: 200px; /* Smaller on mobile */
+  }
 }
 
 /* Cards */
@@ -200,6 +239,9 @@ body {
   border: 1px solid var(--card-border);
   position: relative;
   overflow: hidden;
+  min-height: 280px; /* Reasonable minimum height */
+  display: flex;
+  flex-direction: column;
 }
 
 .card::before {
@@ -225,8 +267,8 @@ body {
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-lg);
   font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .card-icon {
@@ -292,7 +334,7 @@ body {
 }
 
 .sensor-value {
-  font-size: 2.5rem;
+  font-size: 2.8rem; /* Moderate increase */
   font-weight: 800;
   background: var(--primary-gradient);
   -webkit-background-clip: text;
@@ -335,9 +377,9 @@ body {
 }
 
 .motor-status-value {
-  font-size: 1.5rem;
+  font-size: 2rem; /* Moderate increase */
   font-weight: 800;
-  margin: var(--spacing-sm) 0;
+  margin: var(--spacing-md) 0;
 }
 
 .motor-status-value.on {
@@ -352,6 +394,7 @@ body {
   display: flex;
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-lg);
+  margin-top: auto; /* Push controls to bottom of card */
 }
 
 .motor-btn {
@@ -401,37 +444,21 @@ body {
   cursor: not-allowed;
 }
 
-.emergency-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md);
-  background: linear-gradient(135deg, var(--warning) 0%, #ff9500 100%);
-  color: #0f0f23;
-  border: none;
-  border-radius: var(--radius-md);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  transition: var(--transition-normal);
-}
-
-.emergency-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(255, 167, 38, 0.4);
-}
-
 /* Next Schedule */
 .next-schedule-content {
   text-align: center;
   padding: var(--spacing-lg) 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.next-schedule-content .btn {
+  margin-top: auto; /* Push button to bottom of card */
 }
 
 .next-schedule-time {
-  font-size: 1.8rem;
+  font-size: 2.2rem; /* Moderate increase */
   font-weight: 800;
   background: var(--primary-gradient);
   -webkit-background-clip: text;
@@ -703,9 +730,24 @@ body {
   text-transform: uppercase;
 }
 
+.schedule-date {
+  background: var(--accent-color);
+  color: #0f0f23;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
 .schedule-details {
   color: var(--text-secondary);
   font-size: 0.9rem;
+}
+
+.schedule-full-date {
+  color: var(--accent-color);
+  font-weight: 500;
 }
 
 .delete-btn {

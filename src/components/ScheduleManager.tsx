@@ -11,6 +11,7 @@ export function ScheduleManager({ onBackToDashboard }: ScheduleManagerProps) {
   const { state, addSchedule, deleteSchedule } = useIoT();
   const [formData, setFormData] = useState({
     time: '',
+    date: '',
     duration: '',
     isDaily: false
   });
@@ -23,6 +24,11 @@ export function ScheduleManager({ onBackToDashboard }: ScheduleManagerProps) {
       return;
     }
 
+    // Check if date is required and provided for non-daily schedules
+    if (!formData.isDaily && !formData.date) {
+      return;
+    }
+
     const duration = parseInt(formData.duration);
     if (duration < 1) {
       return;
@@ -32,15 +38,17 @@ export function ScheduleManager({ onBackToDashboard }: ScheduleManagerProps) {
     try {
       await addSchedule({
         time: formData.time,
+        date: formData.isDaily ? undefined : formData.date, // Only include date for non-daily schedules
         action: 'on', // Always water when schedule starts
         duration,
-        active: true,
-        isDaily: formData.isDaily
+        frequency: formData.isDaily ? 'daily' : 'weekly', // Send frequency instead of isDaily
+        active: true
       });
       
       // Reset form
       setFormData({
         time: '',
+        date: '',
         duration: '',
         isDaily: false
       });
@@ -93,6 +101,28 @@ export function ScheduleManager({ onBackToDashboard }: ScheduleManagerProps) {
                 onChange={(e) => setFormData(prev => ({ ...prev, time: e.target.value }))}
                 required
               />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="scheduleDate">
+                <Clock size={16} />
+                Date {formData.isDaily ? '(Not needed for daily schedules)' : '(Required for one-time schedules)'}
+              </label>
+              <input
+                type="date"
+                id="scheduleDate"
+                value={formData.date}
+                onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                required={!formData.isDaily}
+                disabled={formData.isDaily}
+                min={new Date().toISOString().split('T')[0]} // Prevent past dates
+              />
+              <small>
+                {formData.isDaily 
+                  ? 'Daily schedules run every day automatically' 
+                  : 'Select the specific date for this schedule'
+                }
+              </small>
             </div>
             
             <div className="form-group">
@@ -164,8 +194,8 @@ export function ScheduleManager({ onBackToDashboard }: ScheduleManagerProps) {
               state.schedules
                 .sort((a, b) => {
                   // Sort: daily first, then by time
-                  if (a.isDaily && !b.isDaily) return -1;
-                  if (!a.isDaily && b.isDaily) return 1;
+                  if ((a.frequency === 'daily') && (b.frequency === 'weekly')) return -1;
+                  if ((a.frequency === 'weekly') && (b.frequency === 'daily')) return 1;
                   
                   const timeA = parseInt(a.time.split(':')[0]) * 60 + parseInt(a.time.split(':')[1]);
                   const timeB = parseInt(b.time.split(':')[0]) * 60 + parseInt(b.time.split(':')[1]);
@@ -207,15 +237,29 @@ function ScheduleItem({ schedule, onDelete }: ScheduleItemProps) {
     <div className="schedule-item">
       <div className="schedule-item-content">
         <div className="schedule-item-icon">
-          {schedule.isDaily ? <RefreshCw size={20} /> : <Clock size={20} />}
+          {schedule.frequency === 'daily' ? <RefreshCw size={20} /> : <Clock size={20} />}
         </div>
         <div className="schedule-item-info">
           <div className="schedule-item-header">
             <div className="schedule-time">{schedule.time}</div>
-            {schedule.isDaily && <span className="schedule-badge">DAILY</span>}
+            {schedule.frequency === 'daily' && <span className="schedule-badge">DAILY</span>}
+            {schedule.frequency === 'weekly' && schedule.date && (
+              <span className="schedule-date">
+                {new Date(schedule.date).toLocaleDateString('en-US', { 
+                  weekday: 'short', 
+                  month: 'short', 
+                  day: 'numeric' 
+                })}
+              </span>
+            )}
           </div>
           <div className="schedule-details">
-            {schedule.isDaily ? 'Daily • Auto watering' : 'One-time • Auto watering'} • {schedule.duration} minutes
+            {schedule.frequency === 'daily' ? 'Daily • Auto watering' : 'One-time • Auto watering'} • {schedule.duration} minutes
+            {schedule.frequency === 'weekly' && schedule.date && (
+              <span className="schedule-full-date">
+                • {new Date(schedule.date).toLocaleDateString()}
+              </span>
+            )}
           </div>
         </div>
       </div>
