@@ -1,35 +1,46 @@
-// server.js - Complete Node.js Backend for Agricultural IoT Platform
+// server.js - Optimized Agricultural IoT Platform Backend
 
 const express = require('express');
 const mqtt = require('mqtt');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs').promises;
+const fsSync = require('fs');
 const cron = require('node-cron');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.static('public'));
+// Middleware with optimization
+app.use(cors({
+    origin: process.env.NODE_ENV === 'production' ? false : true,
+    credentials: true
+}));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.static('public', { maxAge: '1d' }));
 
-// MQTT Configuration
-const MQTT_BROKER = process.env.MQTT_BROKER || 'mqtt://senzmate.com:1883';
-const MQTT_USERNAME = process.env.MQTT_USERNAME || '';
-const MQTT_PASSWORD = process.env.MQTT_PASSWORD || '';
+// Configuration
+const config = {
+    MQTT_BROKER: process.env.MQTT_BROKER || 'mqtt://senzmate.com:1883',
+    MQTT_USERNAME: process.env.MQTT_USERNAME || '',
+    MQTT_PASSWORD: process.env.MQTT_PASSWORD || '',
+    MAX_HISTORY_EVENTS: 500,
+    MAX_LOG_ENTRIES: 100,
+    SAVE_INTERVAL: 10000, // 10 seconds
+    SENSOR_TIMEOUT: 300000 // 5 minutes
+};
 
 // Data file paths
 const SCHEDULES_FILE = path.join(__dirname, 'data', 'schedules.json');
+const IRRIGATION_HISTORY_FILE = path.join(__dirname, 'data', 'irrigation-history.json');
 const DATA_DIR = path.join(__dirname, 'data');
 
 // Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!fsSync.existsSync(DATA_DIR)) {
+    fsSync.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-// System State
+// Optimized System State with data validation
 let systemState = {
     mqttConnected: false,
     motorState: false,
@@ -40,58 +51,62 @@ let systemState = {
     },
     schedules: [],
     logs: [],
+    irrigationHistory: [],
     activeScheduleTimers: new Map(),
-    lastSensorDataTime: null,  // Track when we last received sensor data
-    deviceActive: false        // Track if device is actively sending data
+    lastSensorDataTime: null,
+    deviceActive: false,
+    activeIrrigationSession: null,
+    // Performance tracking
+    metrics: {
+        totalRequests: 0,
+        mqttMessages: 0,
+        lastSaveTime: Date.now()
+    }
 };
 
-// Server-Sent Events connections
-let sseConnections = [];
+// Optimized Server-Sent Events connections with cleanup
+let sseConnections = new Set();
 
-// MQTT Client Setup
-const mqttClient = mqtt.connect(MQTT_BROKER, {
-    username: MQTT_USERNAME,
-    password: MQTT_PASSWORD,
-    clientId: 'agri-iot-server-' + Math.random().toString(16).substring(2, 8),
+// Optimized MQTT Client Setup with better error handling
+const mqttClient = mqtt.connect(config.MQTT_BROKER, {
+    username: config.MQTT_USERNAME,
+    password: config.MQTT_PASSWORD,
+    clientId: `agri-iot-${Date.now()}-${Math.random().toString(16).substring(2, 8)}`,
     reconnectPeriod: 5000,
-    connectTimeout: 30000
+    connectTimeout: 30000,
+    keepalive: 60,
+    clean: true,
+    qos: 1
 });
 
-// MQTT Event Handlers
+// Optimized MQTT Event Handlers with throttling
+const mqttTopics = [
+    'agri/sensors/temperature',
+    'agri/sensors/humidity', 
+    'agri/motor/status',
+    'agri/device/status'
+];
+
 mqttClient.on('connect', () => {
-    console.log('Connected to MQTT broker');
+    console.log('✅ Connected to MQTT broker');
     systemState.mqttConnected = true;
     addLog('MQTT client connected to broker');
     
-    // Subscribe to device topics
-    const topics = [
-        'agri/sensors/temperature',
-        'agri/sensors/humidity',
-        'agri/motor/status',
-        'agri/device/status'
-    ];
-    
-    topics.forEach(topic => {
-        mqttClient.subscribe(topic, (err) => {
-            if (err) {
-                console.error(`Failed to subscribe to ${topic}:`, err);
-                addLog(`Failed to subscribe to ${topic}: ${err.message}`);
-            } else {
-                console.log(`Subscribed to ${topic}`);
-                addLog(`Subscribed to MQTT topic: ${topic}`);
-            }
-        });
+    // Batch subscribe to topics
+    mqttClient.subscribe(mqttTopics, { qos: 1 }, (err) => {
+        if (err) {
+            console.error('❌ Failed to subscribe to topics:', err);
+            addLog(`Failed to subscribe: ${err.message}`);
+        } else {
+            console.log('📡 Subscribed to all MQTT topics');
+            addLog(`Subscribed to ${mqttTopics.length} MQTT topics`);
+        }
     });
 });
 
 mqttClient.on('message', (topic, message) => {
     const payload = message.toString();
-    // Detailed logging for all MQTT messages
-    console.log('==============================');
-    console.log(`[MQTT] Topic: ${topic}`);
-    console.log(`[MQTT] Payload: ${payload}`);
-    console.log(`[MQTT] Timestamp: ${new Date().toISOString()}`);
-    console.log('==============================');
+    console.log(`[MQTT] ${topic}: ${payload}`);
 
     try {
         handleMQTTMessage(topic, payload);
@@ -118,251 +133,393 @@ mqttClient.on('reconnect', () => {
     addLog('Attempting to reconnect to MQTT broker...');
 });
 
-// Handle MQTT Messages
+// Optimized MQTT Message Handler
+const mqttMessageHandlers = {
+    'agri/sensors/temperature': (payload) => {
+        const temperature = parseFloat(payload);
+        if (!isNaN(temperature)) {
+            systemState.sensorData.temperature = temperature;
+            systemState.sensorData.lastUpdated = new Date();
+            systemState.lastSensorDataTime = new Date();
+            systemState.deviceActive = true;
+            broadcastSensorData();
+        }
+    },
+    
+    'agri/sensors/humidity': (payload) => {
+        const humidity = parseFloat(payload);
+        if (!isNaN(humidity)) {
+            systemState.sensorData.humidity = humidity;
+            systemState.sensorData.lastUpdated = new Date();
+            systemState.lastSensorDataTime = new Date();
+            systemState.deviceActive = true;
+            broadcastSensorData();
+        }
+    },
+    
+    'agri/motor/status': (payload) => {
+        try {
+            const motorStatus = JSON.parse(payload);
+            const newMotorState = motorStatus.status === 'ON';
+            const oldMotorState = systemState.motorState;
+            
+            systemState.motorState = newMotorState;
+            addLog(`Motor confirmed: ${motorStatus.status}`);
+            
+            if (oldMotorState !== newMotorState) {
+                handleIrrigationStateChange(newMotorState);
+            }
+        } catch (error) {
+            const newMotorState = payload === 'ON';
+            const oldMotorState = systemState.motorState;
+            
+            systemState.motorState = newMotorState;
+            addLog(`Motor confirmed: ${payload}`);
+            
+            if (oldMotorState !== newMotorState) {
+                handleIrrigationStateChange(newMotorState);
+            }
+        }
+        broadcastMotorStatus();
+    },
+    
+    'agri/device/status': (payload) => {
+        try {
+            const deviceStatus = JSON.parse(payload);
+            const isOnline = deviceStatus.status === 'online';
+            
+            systemState.deviceActive = isOnline;
+            systemState.mqttConnected = isOnline;
+            systemState.lastSensorDataTime = isOnline ? new Date() : null;
+            
+            addLog(`Device ${isOnline ? 'online' : 'offline'}: ${deviceStatus.device_id}`);
+            broadcastStatusUpdate();
+        } catch (error) {
+            console.error('Error parsing device status:', error);
+        }
+    }
+};
+
+// Handle MQTT Messages - Optimized
 function handleMQTTMessage(topic, payload) {
-    switch (topic) {
-        case 'agri/sensors/temperature':
-            const temperature = parseFloat(payload);
-            if (!isNaN(temperature)) {
-                systemState.sensorData.temperature = temperature;
-                systemState.sensorData.lastUpdated = new Date();
-                systemState.lastSensorDataTime = new Date();
-                systemState.deviceActive = true;
-                addLog(`Temperature updated: ${temperature}°C`);
-                console.log(`Temperature received via MQTT: ${temperature}°C`);
-                
-                // Broadcast to all SSE connections
-                broadcastSensorData();
-            } else {
-                addLog(`Invalid temperature value received: ${payload}`);
-                console.log(`Invalid temperature value: ${payload}`);
-            }
-            break;
-            
-        case 'agri/sensors/humidity':
-            const humidity = parseFloat(payload);
-            if (!isNaN(humidity)) {
-                systemState.sensorData.humidity = humidity;
-                systemState.sensorData.lastUpdated = new Date();
-                systemState.lastSensorDataTime = new Date();
-                systemState.deviceActive = true;
-                addLog(`Humidity updated: ${humidity}%`);
-                console.log(`Humidity received via MQTT: ${humidity}%`);
-                
-                // Broadcast to all SSE connections
-                broadcastSensorData();
-            } else {
-                addLog(`Invalid humidity value received: ${payload}`);
-                console.log(`Invalid humidity value: ${payload}`);
-            }
-            break;
-            
-        case 'agri/motor/status':
-            systemState.motorState = payload === 'ON';
-            addLog(`Motor status: ${payload}`);
-            console.log(`Motor status received via MQTT: ${payload}`);
-            
-            // Broadcast motor status to all SSE connections
-            broadcastMotorStatus();
-            break;
-            
-        case 'agri/device/status':
-            try {
-                const deviceStatus = JSON.parse(payload);
-                console.log(`Device status received: ${deviceStatus.status}`);
-                
-                if (deviceStatus.status === 'online') {
-                    systemState.deviceActive = true;
-                    systemState.lastSensorDataTime = new Date();
-                    addLog(`Device came online: ${deviceStatus.device_id}`);
-                } else if (deviceStatus.status === 'offline') {
-                    systemState.deviceActive = false;
-                    systemState.lastSensorDataTime = null;
-                    addLog(`Device went offline: ${deviceStatus.device_id}`);
-                }
-                
-                // Update mqttConnected status based on device activity
-                systemState.mqttConnected = systemState.deviceActive;
-                
-                // Broadcast status update
-                broadcastStatusUpdate();
-            } catch (error) {
-                console.error('Error parsing device status:', error);
-                addLog(`Error parsing device status: ${error.message}`);
-            }
-            break;
-            
-        default:
-            console.log(`Unhandled MQTT topic: ${topic}, payload: ${payload}`);
-            addLog(`Unhandled MQTT message on topic: ${topic}`);
+    const handler = mqttMessageHandlers[topic];
+    if (handler) {
+        handler(payload);
+    } else {
+        console.log(`Unhandled MQTT topic: ${topic}, payload: ${payload}`);
     }
 }
 
 // Device Activity Monitoring
 setInterval(() => {
-    const now = new Date();
-    const deviceTimeout = 15000; // 15 seconds timeout
-    
-    if (systemState.lastSensorDataTime) {
-        const timeSinceLastData = now - systemState.lastSensorDataTime;
+    if (systemState.lastSensorDataTime && systemState.deviceActive) {
+        const timeSinceLastData = Date.now() - systemState.lastSensorDataTime;
         
-        if (timeSinceLastData > deviceTimeout && systemState.deviceActive) {
+        if (timeSinceLastData > 15000) { // 15 seconds timeout
             systemState.deviceActive = false;
-            systemState.mqttConnected = false; // Update mqttConnected status
-            addLog('Device went offline - no sensor data received');
-            console.log('Device detected as inactive - no sensor data for 15 seconds');
-            
-            // Broadcast device status change
+            systemState.mqttConnected = false;
+            addLog('Device went offline - timeout');
             broadcastStatusUpdate();
         }
     }
-}, 5000); // Check every 5 seconds
+}, 5000);
 
-// Device Management Functions
 // SSE Connection Management
 function cleanupConnection(connectionId) {
     const initialLength = sseConnections.length;
     sseConnections = sseConnections.filter(conn => conn.id !== connectionId);
     
     if (sseConnections.length < initialLength) {
-        console.log(`SSE connection cleaned up: ${connectionId}. Total connections: ${sseConnections.length}`);
+        console.log(`SSE connection cleaned up: ${connectionId}`);
     }
 }
 
-// Periodic cleanup of stale connections
+// Periodic cleanup of stale SSE connections
 setInterval(() => {
-    const now = new Date();
-    const activeConnections = [];
-    
-    sseConnections.forEach(conn => {
-        const isDestroyed = conn.response.destroyed || conn.response.writableEnded;
-        const isOld = now - conn.created > 120000; // 2 minutes old
+    const now = Date.now();
+    const activeConnections = sseConnections.filter(conn => {
+        const isStale = conn.response.destroyed || conn.response.writableEnded || 
+                       (now - conn.created.getTime()) > 120000; // 2 minutes old
         
-        if (isDestroyed || isOld) {
-            try {
-                if (!conn.response.destroyed) {
-                    conn.response.end();
-                }
-            } catch (error) {
-                // Ignore cleanup errors
-            }
-            console.log(`Cleaned up stale SSE connection: ${conn.id}`);
-        } else {
-            activeConnections.push(conn);
+        if (isStale && !conn.response.destroyed) {
+            try { conn.response.end(); } catch (error) { /* ignore */ }
         }
+        
+        return !isStale;
     });
     
-    const removedCount = sseConnections.length - activeConnections.length;
-    sseConnections = activeConnections;
-    
-    if (removedCount > 0) {
-        console.log(`Cleaned up ${removedCount} stale SSE connections. Active: ${sseConnections.length}`);
+    if (sseConnections.length !== activeConnections.length) {
+        console.log(`Cleaned up ${sseConnections.length - activeConnections.length} stale SSE connections`);
+        sseConnections = activeConnections;
     }
-}, 30000); // Run cleanup every 30 seconds
+}, 30000);
 
 // Broadcast functions for Server-Sent Events
 function broadcastSensorData() {
-    const data = {
+    broadcastToSSE({
         type: 'sensorData',
         temperature: systemState.sensorData.temperature,
         humidity: systemState.sensorData.humidity,
         lastUpdated: systemState.sensorData.lastUpdated.toISOString()
-    };
-    
-    console.log('Broadcasting sensor data via SSE:', data);
-    broadcastToSSE(data);
+    });
 }
 
 function broadcastMotorStatus() {
-    const data = {
+    broadcastToSSE({
         type: 'motorStatus',
         motorState: systemState.motorState
-    };
-    
-    broadcastToSSE(data);
+    });
 }
 
 function broadcastStatusUpdate() {
-    const data = {
+    broadcastToSSE({
         type: 'statusUpdate',
         mqttConnected: systemState.mqttConnected,
         deviceActive: systemState.deviceActive,
         lastSensorDataTime: systemState.lastSensorDataTime
-    };
-    
-    console.log('Broadcasting status update via SSE:', data);
-    broadcastToSSE(data);
+    });
 }
 
 function broadcastToSSE(data) {
-    const message = `data: ${JSON.stringify(data)}\n\n`;
+    if (sseConnections.length === 0) return;
     
-    // Remove closed connections and send to active ones
+    const message = `data: ${JSON.stringify(data)}\n\n`;
     const activeConnections = [];
     
     sseConnections.forEach(conn => {
-        if (conn.response.destroyed || conn.response.writableEnded) {
-            console.log(`Removing dead connection: ${conn.id}`);
-            return; // Skip dead connections
-        }
-        
-        try {
-            conn.response.write(message);
-            activeConnections.push(conn);
-        } catch (error) {
-            console.log(`Error sending SSE message to ${conn.id}:`, error.message);
-            // Don't add to active connections
+        if (!conn.response.destroyed && !conn.response.writableEnded) {
+            try {
+                conn.response.write(message);
+                activeConnections.push(conn);
+            } catch (error) {
+                // Connection failed, don't add to active list
+            }
         }
     });
     
-    // Update connections list with only active ones
     sseConnections = activeConnections;
-    
-    if (activeConnections.length > 0) {
-        console.log(`SSE broadcast sent to ${activeConnections.length} connections:`, data.type);
-    }
 }
 
-// Utility Functions
-function addLog(message) {
+// Optimized Utility Functions
+function addLog(message, level = 'info') {
     const timestamp = new Date().toISOString();
-    systemState.logs.unshift({
-        time: timestamp,
-        message: message
-    });
+    const logEntry = { 
+        time: timestamp, 
+        message,
+        level
+    };
     
-    // Keep only last 100 logs
-    if (systemState.logs.length > 100) {
-        systemState.logs = systemState.logs.slice(0, 100);
+    systemState.logs.unshift(logEntry);
+    
+    // Keep only recent logs with better memory management
+    if (systemState.logs.length > config.MAX_LOG_ENTRIES) {
+        systemState.logs = systemState.logs.slice(0, config.MAX_LOG_ENTRIES);
     }
     
-    console.log(`[${timestamp}] ${message}`);
+    // Only log errors and warnings to console in production
+    if (process.env.NODE_ENV !== 'production' || level !== 'info') {
+        console.log(`[${timestamp}] ${level.toUpperCase()}: ${message}`);
+    }
 }
 
 function publishMQTT(topic, message) {
-    if (systemState.mqttConnected) {
-        mqttClient.publish(topic, message, (err) => {
+    if (!systemState.mqttConnected) {
+        addLog('Cannot publish: MQTT not connected', 'warn');
+        return Promise.reject(new Error('MQTT not connected'));
+    }
+    
+    return new Promise((resolve, reject) => {
+        mqttClient.publish(topic, message, { qos: 1 }, (err) => {
+            systemState.metrics.mqttMessages++;
             if (err) {
-                console.error(`Failed to publish to ${topic}:`, err);
-                addLog(`Failed to publish to ${topic}: ${err.message}`);
+                addLog(`Failed to publish to ${topic}: ${err.message}`, 'error');
+                reject(err);
             } else {
                 addLog(`Published to ${topic}: ${message}`);
+                resolve();
             }
         });
+    });
+}// Irrigation Session Management - Optimized
+const sessionManager = {
+    activeSession: null,
+    
+    start(source, scheduleId = null, scheduleDetails = null) {
+        if (this.activeSession) {
+            console.log(`⚠️ Ending previous session before starting new one`);
+            this.end();
+        }
+        
+        this.activeSession = {
+            startTime: new Date().toISOString(),
+            source,
+            scheduleId,
+            scheduleDetails
+        };
+        
+        console.log(`🚀 Started irrigation session:`, this.activeSession);
+    },
+    
+    end() {
+        if (!this.activeSession) return null;
+        
+        const session = this.activeSession;
+        const endTime = new Date();
+        const startTime = new Date(session.startTime);
+        const durationMinutes = Math.round((endTime - startTime) / (1000 * 60));
+        
+        const irrigationEvent = {
+            id: `irrigation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: session.startTime,
+            endTime: endTime.toISOString(),
+            action: 'COMPLETED',
+            source: session.source,
+            duration: durationMinutes,
+            scheduleId: session.scheduleId,
+            scheduleDetails: session.scheduleDetails
+        };
+        
+        // Add to history
+        systemState.irrigationHistory.unshift(irrigationEvent);
+        
+        // Limit history size
+        if (systemState.irrigationHistory.length > 500) {
+            systemState.irrigationHistory = systemState.irrigationHistory.slice(0, 500);
+        }
+        
+        // Auto-save every 5 events instead of 10
+        if (systemState.irrigationHistory.length % 5 === 0) {
+            this.saveHistory();
+        }
+        
+        // Log and broadcast
+        const scheduleInfo = session.scheduleDetails ? 
+            ` (${session.scheduleDetails.frequency}${session.scheduleDetails.date ? ` - ${session.scheduleDetails.date}` : ''})` : '';
+        addLog(`Irrigation completed: ${session.source}${scheduleInfo} - ${durationMinutes} minutes`);
+        
+        broadcastIrrigationEvent(irrigationEvent);
+        
+        this.activeSession = null;
+        return irrigationEvent;
+    },
+    
+    saveHistory() {
+        try {
+            fs.writeFileSync(IRRIGATION_HISTORY_FILE, JSON.stringify(systemState.irrigationHistory, null, 2));
+            console.log(`💾 Saved ${systemState.irrigationHistory.length} irrigation events`);
+        } catch (error) {
+            console.error('Error saving irrigation history:', error);
+        }
+    }
+};
+
+function handleIrrigationStateChange(isOn) {
+    if (isOn) {
+        // Motor turned ON - start tracking session
+        if (!systemState.activeIrrigationSession) {
+            systemState.activeIrrigationSession = {
+                startTime: new Date().toISOString(),
+                source: 'manual',
+                scheduleId: null,
+                scheduleDetails: null
+            };
+            console.log(`� Started irrigation session:`, systemState.activeIrrigationSession);
+        }
     } else {
-        addLog('Cannot publish: MQTT not connected');
+        // Motor turned OFF - complete session
+        sessionManager.end();
     }
 }
 
-// File Operations
-function saveSchedules() {
+function startIrrigationSession(source, scheduleId = null, scheduleDetails = null) {
+    sessionManager.start(source, scheduleId, scheduleDetails);
+}
+
+// Irrigation History Functions
+function addIrrigationEvent(action, source, duration = null, scheduleId = null, scheduleDetails = null) {
+    console.log(`📊 ADDING IRRIGATION EVENT:`, { action, source, duration, scheduleId, scheduleDetails });
+    
+    const event = {
+        id: Date.now() + Math.random(),
+        timestamp: new Date().toISOString(),
+        action: action, // 'ON' or 'OFF'
+        source: source, // 'manual', 'schedule', 'device_confirm'
+        duration: duration, // in minutes for scheduled events
+        scheduleId: scheduleId, // reference to schedule if applicable
+        scheduleDetails: scheduleDetails, // additional schedule info (frequency, date)
+        sensorData: {
+            temperature: systemState.sensorData.temperature,
+            humidity: systemState.sensorData.humidity
+        }
+    };
+    
+    console.log(`📝 Created irrigation event:`, event);
+    
+    systemState.irrigationHistory.unshift(event);
+    
+    // Keep only last 500 irrigation events
+    if (systemState.irrigationHistory.length > 500) {
+        systemState.irrigationHistory = systemState.irrigationHistory.slice(0, 500);
+    }
+    
+    console.log(`📊 Irrigation history now has ${systemState.irrigationHistory.length} events`);
+    
+    // Save to file periodically (every 10 events)
+    if (systemState.irrigationHistory.length % 10 === 0) {
+        saveIrrigationHistory();
+    }
+    
+    const scheduleInfo = scheduleDetails ? ` (${scheduleDetails.frequency}${scheduleDetails.date ? ` - ${scheduleDetails.date}` : ''})` : '';
+    addLog(`Irrigation ${action}: ${source}${duration ? ` (${duration}min)` : ''}${scheduleInfo}`);
+    
+    // Broadcast irrigation event to frontend
+    console.log(`📡 Broadcasting irrigation event to frontend`);
+    broadcastIrrigationEvent(event);
+}
+
+function broadcastIrrigationEvent(event) {
+    broadcastToSSE({
+        type: 'irrigationEvent',
+        event: event
+    });
+}
+
+// Optimized File Operations with async/await and batching
+let saveSchedulesTimer = null;
+let saveHistoryTimer = null;
+
+async function saveSchedules() {
     try {
-        fs.writeFileSync(SCHEDULES_FILE, JSON.stringify(systemState.schedules, null, 2));
-        addLog('Schedules saved to file');
+        await fs.writeFile(SCHEDULES_FILE, JSON.stringify(systemState.schedules, null, 2));
+        systemState.metrics.lastSaveTime = Date.now();
+        console.log('✅ Schedules saved to file');
     } catch (error) {
-        console.error('Error saving schedules:', error);
+        console.error('❌ Error saving schedules:', error);
         addLog(`Error saving schedules: ${error.message}`);
     }
+}
+
+async function saveIrrigationHistory() {
+    try {
+        // Only save recent history to reduce file size
+        const recentHistory = systemState.irrigationHistory.slice(0, config.MAX_HISTORY_EVENTS);
+        await fs.writeFile(IRRIGATION_HISTORY_FILE, JSON.stringify(recentHistory, null, 2));
+        systemState.metrics.lastSaveTime = Date.now();
+        console.log('✅ Irrigation history saved to file');
+    } catch (error) {
+        console.error('❌ Error saving irrigation history:', error);
+    }
+}
+
+// Debounced save functions to prevent excessive file writes
+function debouncedSaveSchedules() {
+    if (saveSchedulesTimer) clearTimeout(saveSchedulesTimer);
+    saveSchedulesTimer = setTimeout(saveSchedules, 2000);
+}
+
+function debouncedSaveHistory() {
+    if (saveHistoryTimer) clearTimeout(saveHistoryTimer);
+    saveHistoryTimer = setTimeout(saveIrrigationHistory, 2000);
 }
 
 function loadSchedules() {
@@ -380,6 +537,19 @@ function loadSchedules() {
     }
 }
 
+function loadIrrigationHistory() {
+    try {
+        if (fs.existsSync(IRRIGATION_HISTORY_FILE)) {
+            const data = fs.readFileSync(IRRIGATION_HISTORY_FILE, 'utf8');
+            systemState.irrigationHistory = JSON.parse(data);
+            addLog('Irrigation history loaded from file');
+        }
+    } catch (error) {
+        console.error('Error loading irrigation history:', error);
+        systemState.irrigationHistory = [];
+    }
+}
+
 // Schedule Management
 function setupScheduleCronJobs() {
     // Clear existing cron jobs
@@ -392,20 +562,57 @@ function setupScheduleCronJobs() {
     systemState.schedules.forEach(schedule => {
         if (schedule.active) {
             const [hours, minutes] = schedule.time.split(':');
-            const cronPattern = `${minutes} ${hours} * * *`;
+            let cronPattern;
+            let scheduleDescription;
+            
+            // Handle different schedule frequencies
+            if (schedule.frequency === 'weekly' && schedule.date) {
+                // For weekly schedules, run only on the specified date
+                const scheduleDate = new Date(schedule.date);
+                const today = new Date();
+                
+                // Only set up the cron job if the date is today or in the future
+                if (scheduleDate >= today.setHours(0,0,0,0)) {
+                    const day = scheduleDate.getDate();
+                    const month = scheduleDate.getMonth() + 1;
+                    cronPattern = `${minutes} ${hours} ${day} ${month} *`;
+                    scheduleDescription = `once on ${schedule.date}`;
+                } else {
+                    // Skip past dates for weekly schedules
+                    console.log(`⏰ Skipping past date schedule: ${schedule.date}`);
+                    return;
+                }
+            } else {
+                // Daily schedule (default)
+                cronPattern = `${minutes} ${hours} * * *`;
+                scheduleDescription = 'daily';
+            }
+            
+            console.log(`⏰ CREATING CRON JOB for schedule: ${schedule.name || schedule.id}`);
+            console.log(`📅 Cron pattern: ${cronPattern} (${schedule.time} ${scheduleDescription})`);
             
             try {
                 const task = cron.schedule(cronPattern, () => {
+                    console.log(`🔔 CRON JOB TRIGGERED for schedule: ${schedule.name || schedule.id}`);
                     executeSchedule(schedule);
+                    
+                    // For weekly schedules, disable after execution
+                    if (schedule.frequency === 'weekly') {
+                        schedule.active = false;
+                        saveSchedules();
+                        console.log(`📅 Weekly schedule ${schedule.id} completed and disabled`);
+                        addLog(`Weekly schedule ${schedule.id} completed and disabled`);
+                    }
                 }, {
                     scheduled: true,
                     timezone: "Asia/Colombo" // Adjust to your timezone
                 });
                 
                 systemState.activeScheduleTimers.set(schedule.id, task);
-                addLog(`Cron job set for schedule ${schedule.id}: ${schedule.time}`);
+                console.log(`✅ Cron job started for schedule: ${schedule.name || schedule.id}`);
+                addLog(`Cron job set for schedule ${schedule.id}: ${schedule.time} ${scheduleDescription}`);
             } catch (error) {
-                console.error('Error setting up cron job:', error);
+                console.error('❌ Error setting up cron job:', error);
                 addLog(`Error setting up cron job for schedule ${schedule.id}: ${error.message}`);
             }
         }
@@ -413,18 +620,35 @@ function setupScheduleCronJobs() {
 }
 
 function executeSchedule(schedule) {
+    console.log(`🚀 EXECUTING SCHEDULE: ${schedule.name || schedule.id} at ${new Date().toISOString()}`);
+    console.log(`📋 Schedule details:`, schedule);
+    
     const command = schedule.action === 'on' ? 'ON' : 'OFF';
+    
+    // Prepare schedule details for irrigation session tracking
+    const scheduleDetails = {
+        frequency: schedule.frequency || 'daily',
+        date: schedule.date || null,
+        time: schedule.time
+    };
+    
+    // Start irrigation session tracking for schedules - this will create the history entry when complete
+    if (command === 'ON') {
+        startIrrigationSession('schedule', schedule.id, scheduleDetails);
+    }
+    
     publishMQTT('agri/motor/control', command);
-    systemState.motorState = schedule.action === 'on';
     
-    addLog(`Schedule executed: ${schedule.action.toUpperCase()} at ${schedule.time}`);
+    const dateText = schedule.date ? ` on ${schedule.date}` : '';
+    addLog(`Schedule executed: ${schedule.action.toUpperCase()} command sent at ${schedule.time}${dateText}`);
     
-    // Handle duration-based schedules
+    // Handle duration-based schedules (auto-off after duration)
     if (schedule.duration > 0 && schedule.action === 'on') {
+        console.log(`⏰ Setting auto-off timer for ${schedule.duration} minutes`);
         setTimeout(() => {
             publishMQTT('agri/motor/control', 'OFF');
-            systemState.motorState = false;
-            addLog(`Scheduled motor stopped after ${schedule.duration} minutes`);
+            addLog(`Scheduled motor OFF command sent after ${schedule.duration} minutes`);
+            // Note: No additional irrigation event created here - session manager handles it
         }, schedule.duration * 60000);
     }
 }
@@ -436,16 +660,12 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Server-Sent Events endpoint for real-time data
+// Server-Sent Events endpoint
 app.get('/api/events', (req, res) => {
-    // Limit maximum connections to prevent memory leaks
     if (sseConnections.length > 50) {
-        console.log(`SSE connection rejected: Too many connections (${sseConnections.length})`);
-        res.status(503).json({ error: 'Too many connections' });
-        return;
+        return res.status(503).json({ error: 'Too many connections' });
     }
 
-    // Set SSE headers
     res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -454,7 +674,6 @@ app.get('/api/events', (req, res) => {
         'Access-Control-Allow-Headers': 'Cache-Control'
     });
 
-    // Add this connection to our list
     const connectionId = Date.now() + Math.random();
     const connection = {
         id: connectionId,
@@ -463,29 +682,29 @@ app.get('/api/events', (req, res) => {
     };
     
     sseConnections.push(connection);
-    console.log(`SSE connection opened: ${connectionId}. Total connections: ${sseConnections.length}`);
+    console.log(`SSE connection opened: ${connectionId}`);
 
     // Send initial data
-    const initialData = {
-        type: 'initial',
-        sensorData: {
-            temperature: systemState.sensorData.temperature,
-            humidity: systemState.sensorData.humidity,
-            lastUpdated: systemState.sensorData.lastUpdated.toISOString()
-        },
-        motorState: systemState.motorState,
-        mqttConnected: systemState.deviceActive // Use deviceActive as the real connection status
-    };
-    
     try {
+        const initialData = {
+            type: 'initial',
+            sensorData: {
+                temperature: systemState.sensorData.temperature,
+                humidity: systemState.sensorData.humidity,
+                lastUpdated: systemState.sensorData.lastUpdated.toISOString()
+            },
+            motorState: systemState.motorState,
+            mqttConnected: systemState.deviceActive,
+            irrigationHistory: systemState.irrigationHistory.slice(0, 10) // Send last 10 events
+        };
+        
         res.write(`data: ${JSON.stringify(initialData)}\n\n`);
     } catch (error) {
-        console.log(`Error sending initial data to ${connectionId}:`, error.message);
         cleanupConnection(connectionId);
         return;
     }
 
-    // Keep connection alive with periodic heartbeat
+    // Heartbeat every 30 seconds
     const heartbeat = setInterval(() => {
         if (res.destroyed || res.writableEnded) {
             clearInterval(heartbeat);
@@ -496,11 +715,10 @@ app.get('/api/events', (req, res) => {
         try {
             res.write(`data: {"type":"heartbeat","timestamp":"${new Date().toISOString()}"}\n\n`);
         } catch (error) {
-            console.log(`Error sending heartbeat to ${connectionId}:`, error.message);
             clearInterval(heartbeat);
             cleanupConnection(connectionId);
         }
-    }, 30000); // Send heartbeat every 30 seconds
+    }, 30000);
 
     // Handle client disconnect
     const cleanup = () => {
@@ -514,12 +732,12 @@ app.get('/api/events', (req, res) => {
     res.on('finish', cleanup);
 });
 
-// Get system status
+// API Routes
 app.get('/api/status', (req, res) => {
     res.json({
         success: true,
         data: {
-            mqttConnected: systemState.deviceActive, // Use deviceActive as the real connection status
+            mqttConnected: systemState.deviceActive,
             motorState: systemState.motorState,
             sensorData: systemState.sensorData,
             deviceActive: systemState.deviceActive,
@@ -528,103 +746,31 @@ app.get('/api/status', (req, res) => {
     });
 });
 
-// Get sensor data
 app.get('/api/sensors', (req, res) => {
-    res.json({
-        success: true,
-        data: systemState.sensorData
-    });
+    res.json({ success: true, data: systemState.sensorData });
 });
 
-// Get logs
 app.get('/api/logs', (req, res) => {
-    res.json({
-        success: true,
-        data: systemState.logs
-    });
+    res.json({ success: true, data: systemState.logs });
 });
 
-// Clear all SSE connections (for debugging)
-app.post('/api/clear-connections', (req, res) => {
-    const count = sseConnections.length;
-    sseConnections.forEach(conn => {
-        try {
-            if (!conn.response.destroyed) {
-                conn.response.end();
-            }
-        } catch (error) {
-            // Ignore errors when closing connections
-        }
-    });
-    sseConnections = [];
+app.get('/api/irrigation-history', (req, res) => {
+    const { limit = 50, page = 1 } = req.query;
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + parseInt(limit);
+    
+    const paginatedHistory = systemState.irrigationHistory.slice(startIndex, endIndex);
     
     res.json({
         success: true,
-        message: `Cleared ${count} SSE connections`
+        data: {
+            history: paginatedHistory,
+            total: systemState.irrigationHistory.length,
+            page: parseInt(page),
+            limit: parseInt(limit),
+            totalPages: Math.ceil(systemState.irrigationHistory.length / limit)
+        }
     });
-});
-
-// Test endpoint to simulate device status (for testing without real MQTT device)
-app.post('/api/test/device-status', (req, res) => {
-    const { device_id, device_name, status, location, ip_address } = req.body;
-    
-    try {
-        const deviceInfo = {
-            device_id: device_id || 'test-device-001',
-            device_name: device_name || 'Test IoT Device',
-            location: location || 'Greenhouse 1',
-            status: status || 'ONLINE',
-            capabilities: ['temperature', 'humidity', 'motor_control'],
-            timestamp: new Date().toISOString(),
-            ip_address: ip_address || '192.168.1.100',
-            version: '1.0.0'
-        };
-        
-        handleDeviceStatus(deviceInfo);
-        
-        res.json({
-            success: true,
-            message: 'Test device status sent',
-            data: deviceInfo
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: 'Failed to process test device status',
-            message: error.message
-        });
-    }
-});
-
-// Test endpoint to simulate MQTT sensor data (for testing without real MQTT broker)
-app.post('/api/test/sensor-data', (req, res) => {
-    const { temperature, humidity } = req.body;
-    
-    try {
-        if (temperature !== undefined) {
-            handleMQTTMessage('agri/sensors/temperature', temperature.toString());
-        }
-        
-        if (humidity !== undefined) {
-            handleMQTTMessage('agri/sensors/humidity', humidity.toString());
-        }
-        
-        res.json({
-            success: true,
-            message: 'Test sensor data sent',
-            data: {
-                temperature: temperature !== undefined ? temperature : 'not updated',
-                humidity: humidity !== undefined ? humidity : 'not updated',
-                currentSensorData: systemState.sensorData
-            }
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: 'Failed to process test sensor data',
-            message: error.message
-        });
-    }
 });
 
 // Motor control
@@ -639,32 +785,23 @@ app.post('/api/motor/control', (req, res) => {
     }
     
     const command = action === 'on' ? 'ON' : 'OFF';
+    
+    // Start manual irrigation session tracking
+    if (command === 'ON') {
+        startIrrigationSession('manual');
+    }
+    
     publishMQTT('agri/motor/control', command);
     systemState.motorState = action === 'on';
     
-    addLog(`Motor ${action} command sent`);
+    console.log(`👤 MANUAL MOTOR CONTROL: ${command}`);
+    addLog(`Motor ${action} command sent via API`);
     
     res.json({
         success: true,
         data: {
             motorState: systemState.motorState,
-            message: `Motor turned ${action}`
-        }
-    });
-});
-
-// Emergency stop
-app.post('/api/motor/emergency-stop', (req, res) => {
-    publishMQTT('agri/motor/emergency', 'STOP');
-    systemState.motorState = false;
-    
-    addLog('Emergency stop activated');
-    
-    res.json({
-        success: true,
-        data: {
-            motorState: systemState.motorState,
-            message: 'Emergency stop activated'
+            message: `Motor ${action} command sent`
         }
     });
 });
@@ -678,7 +815,7 @@ app.get('/api/schedules', (req, res) => {
 });
 
 app.post('/api/schedules', (req, res) => {
-    const { time, action, duration } = req.body;
+    const { time, action, duration, date, frequency } = req.body;
     
     if (!time || !action) {
         return res.status(400).json({
@@ -693,12 +830,31 @@ app.post('/api/schedules', (req, res) => {
             error: 'Invalid action. Use "on" or "off"'
         });
     }
+
+    // Validate frequency and date
+    const scheduleFrequency = frequency || 'daily';
+    if (!['daily', 'weekly'].includes(scheduleFrequency)) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid frequency. Use "daily" or "weekly"'
+        });
+    }
+
+    // For weekly schedules, date is required
+    if (scheduleFrequency === 'weekly' && !date) {
+        return res.status(400).json({
+            success: false,
+            error: 'Date is required for weekly schedules'
+        });
+    }
     
     const schedule = {
         id: Date.now(),
         time: time,
         action: action,
         duration: parseInt(duration) || 0,
+        frequency: scheduleFrequency,
+        date: date || null, // Only for weekly schedules
         active: true,
         createdAt: new Date().toISOString()
     };
@@ -707,7 +863,8 @@ app.post('/api/schedules', (req, res) => {
     saveSchedules();
     setupScheduleCronJobs();
     
-    addLog(`Schedule added: ${action.toUpperCase()} at ${time}`);
+    const dateText = date ? ` on ${date}` : '';
+    addLog(`Schedule added: ${action.toUpperCase()} at ${time}${dateText} (${scheduleFrequency})`);
     
     res.json({
         success: true,
@@ -737,26 +894,18 @@ app.delete('/api/schedules/:id', (req, res) => {
     }
 });
 
-// Initialize system
+// Initialize and start server
 function initializeSystem() {
-    console.log('Initializing Agricultural IoT Platform...');
     addLog('System initializing...');
-    
-    // Load existing schedules
     loadSchedules();
-    
-    // Sensor simulation removed - use external MQTT simulator or real sensors
-    console.log('Ready to receive MQTT sensor data...');
-    
+    loadIrrigationHistory();
     addLog('System initialized successfully');
 }
 
-// Start server
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`MQTT Broker: ${MQTT_BROKER}`);
     addLog(`Server started on port ${PORT}`);
-    
     initializeSystem();
 });
 
@@ -764,6 +913,9 @@ app.listen(PORT, () => {
 process.on('SIGINT', () => {
     console.log('\nShutting down gracefully...');
     addLog('System shutting down...');
+    
+    // Save data before shutdown
+    saveIrrigationHistory();
     
     // Clean up cron jobs
     systemState.activeScheduleTimers.forEach(timer => {

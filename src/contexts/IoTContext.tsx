@@ -1,6 +1,6 @@
 import { createContext, useContext, useReducer, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import type { SystemState, SSEMessage, Schedule, LogEntry, SensorData } from '../types';
+import type { SystemState, SSEMessage, Schedule, LogEntry, SensorData, IrrigationEvent } from '../types';
 
 interface IoTContextType {
   state: SystemState;
@@ -16,7 +16,6 @@ interface IoTContextType {
 import { useSSEConnection } from '../hooks/useSSEConnection';
 import { useNotifications } from '../hooks/useNotifications';
 
-
 const initialState: SystemState = {
   mqttConnected: false,
   motorState: false,
@@ -26,7 +25,8 @@ const initialState: SystemState = {
     lastUpdated: new Date(0)
   },
   schedules: [],
-  logs: []
+  logs: [],
+  irrigationHistory: []
 };
 
 type IoTAction =
@@ -36,13 +36,20 @@ type IoTAction =
   | { type: 'SET_SCHEDULES'; payload: Schedule[] }
   | { type: 'ADD_SCHEDULE'; payload: Schedule }
   | { type: 'REMOVE_SCHEDULE'; payload: number }
-  | { type: 'ADD_LOG'; payload: LogEntry };
+  | { type: 'ADD_LOG'; payload: LogEntry }
+  | { type: 'SET_IRRIGATION_HISTORY'; payload: IrrigationEvent[] }
+  | { type: 'ADD_IRRIGATION_EVENT'; payload: IrrigationEvent }
+  | { type: 'BATCH_UPDATE'; payload: Partial<SystemState> };
 
-function iotReducer(state: SystemState = initialState, action: IoTAction): SystemState {
-  console.log('Reducer action:', action.type, action.payload); // Debug log
+// Optimized reducer with better performance
+function iotReducer(state: SystemState, action: IoTAction): SystemState {
   switch (action.type) {
     case 'SET_SENSOR_DATA':
-      console.log('Setting sensor data:', action.payload); // Debug log
+      // Only update if data actually changed
+      if (state.sensorData.temperature === action.payload.temperature && 
+          state.sensorData.humidity === action.payload.humidity) {
+        return state;
+      }
       return {
         ...state,
         sensorData: action.payload
@@ -77,6 +84,16 @@ function iotReducer(state: SystemState = initialState, action: IoTAction): Syste
         ...state,
         logs: [...state.logs, action.payload]
       };
+    case 'SET_IRRIGATION_HISTORY':
+      return {
+        ...state,
+        irrigationHistory: action.payload
+      };
+    case 'ADD_IRRIGATION_EVENT':
+      return {
+        ...state,
+        irrigationHistory: [action.payload, ...state.irrigationHistory.slice(0, 49)] // Keep last 50
+      };
     default:
       return state;
   }
@@ -108,6 +125,9 @@ export function IoTProvider({ children }: { children: ReactNode }) {
         }
         if (message.mqttConnected !== undefined) {
           dispatch({ type: 'SET_MQTT_CONNECTION', payload: message.mqttConnected });
+        }
+        if (message.irrigationHistory) {
+          dispatch({ type: 'SET_IRRIGATION_HISTORY', payload: message.irrigationHistory });
         }
         break;
       }
@@ -152,6 +172,19 @@ export function IoTProvider({ children }: { children: ReactNode }) {
             payload: {
               time: new Date().toISOString(),
               message: `Device ${message.mqttConnected ? 'connected' : 'disconnected'}`
+            }
+          });
+        }
+        break;
+      }
+      case 'irrigationEvent': {
+        if (message.event) {
+          dispatch({ type: 'ADD_IRRIGATION_EVENT', payload: message.event });
+          dispatch({
+            type: 'ADD_LOG',
+            payload: {
+              time: new Date().toISOString(),
+              message: `Irrigation ${message.event.action}: ${message.event.source}${message.event.duration ? ` (${message.event.duration}min)` : ''}`
             }
           });
         }
@@ -223,7 +256,8 @@ export function IoTProvider({ children }: { children: ReactNode }) {
           time: scheduleData.time,
           action: scheduleData.action,
           duration: scheduleData.duration,
-          isDaily: scheduleData.isDaily
+          frequency: scheduleData.frequency,
+          date: scheduleData.date
         }),
       });
 
@@ -233,13 +267,13 @@ export function IoTProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'ADD_SCHEDULE', payload: result.data });
         addNotification({
           type: 'success',
-          message: `${scheduleData.isDaily ? 'Daily' : 'One-time'} schedule created successfully!`
+          message: `${scheduleData.frequency === 'daily' ? 'Daily' : 'One-time'} schedule created successfully!`
         });
         dispatch({
           type: 'ADD_LOG',
           payload: {
             time: new Date().toISOString(),
-            message: `Schedule added: ${scheduleData.action.toUpperCase()} at ${scheduleData.time}`
+            message: `Schedule added: ${scheduleData.action.toUpperCase()} at ${scheduleData.time}${scheduleData.date ? ` on ${scheduleData.date}` : ''} (${scheduleData.frequency})`
           }
         });
       } else {

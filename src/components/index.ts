@@ -1,5 +1,7 @@
 export { Dashboard } from './Dashboard';
 export { Header } from './Header';
+export { default as IrrigationHistory } from './IrrigationHistory';
+export { IrrigationHistoryCard } from './IrrigationHistoryCard';
 export { MotorControl } from './MotorControl';
 export { NextSchedule } from './NextSchedule';
 export { NotificationContainer } from './NotificationContainer';
