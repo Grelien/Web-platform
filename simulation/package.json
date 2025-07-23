@@ -1,0 +1,13 @@
+{
+  "name": "agricultural-iot-simulation",
+  "version": "1.0.0",
+  "description": "MQTT simulation scripts for Agricultural IoT Platform",
+  "scripts": {
+    "mqtt-sim": "python mqtt_simulator.py",
+    "install": "pip install paho-mqtt"
+  },
+  "dependencies": {},
+  "keywords": ["mqtt", "simulation", "iot"],
+  "author": "Your Name",
+  "license": "MIT"
+}

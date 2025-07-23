@@ -1,31 +1,25 @@
 {
-  "name": "eranga",
+  "name": "agricultural-iot-platform",
+  "version": "1.0.0",
+  "description": "Agricultural IoT monitoring platform with React frontend and Node.js backend",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "install:all": "npm install --prefix frontend && npm install --prefix backend",
+    "install:frontend": "npm install --prefix frontend",
+    "install:backend": "npm install --prefix backend",
+    "dev": "start \"Backend\" cmd /c \"npm run dev --prefix backend\" && start \"Frontend\" cmd /c \"npm run dev --prefix frontend\"",
+    "dev:ps": "powershell -ExecutionPolicy Bypass -File start-dev.ps1",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev:backend": "npm run dev --prefix backend",
+    "build": "npm run build --prefix frontend",
+    "start": "npm run start --prefix backend",
+    "lint": "npm run lint --prefix frontend",
+    "clean": "if exist frontend\\node_modules rmdir /s /q frontend\\node_modules && if exist backend\\node_modules rmdir /s /q backend\\node_modules && if exist frontend\\dist rmdir /s /q frontend\\dist",
+    "sim:mqtt": "npm run mqtt-sim --prefix simulation",
+    "analyze": "npm run build --prefix frontend && echo Frontend built. Check frontend/dist for analysis.",
+    "docs": "echo Documentation available in docs/ directory"
   },
-  "dependencies": {
-    "date-fns": "^4.1.0",
-    "lucide-react": "^0.525.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0"
-  },
-  "devDependencies": {
-    "@eslint/js": "^9.30.1",
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6",
-    "@vitejs/plugin-react": "^4.3.3",
-    "eslint": "^9.30.1",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.20",
-    "globals": "^16.3.0",
-    "typescript": "~5.8.3",
-    "typescript-eslint": "^8.35.1",
-    "vite": "^5.4.11"
-  }
+  "keywords": ["iot", "agriculture", "react", "typescript", "mqtt", "sensors"],
+  "author": "Your Name",
+  "license": "MIT"
 }
