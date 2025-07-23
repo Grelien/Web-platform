@@ -1,12 +1,42 @@
 [
   {
-    "id": 1753246111463,
-    "time": "10:19",
+    "id": 1753198481500,
+    "time": "21:05",
     "action": "on",
     "duration": 1,
+    "frequency": "daily",
+    "date": null,
+    "active": true,
+    "createdAt": "2025-07-22T15:34:41.500Z"
+  },
+  {
+    "id": 1753198508201,
+    "time": "21:07",
+    "action": "on",
+    "duration": 2,
     "frequency": "weekly",
-    "date": "2025-07-23",
+    "date": "2025-07-22",
     "active": false,
-    "createdAt": "2025-07-23T04:48:31.463Z"
+    "createdAt": "2025-07-22T15:35:08.201Z"
+  },
+  {
+    "id": 1753202936195,
+    "time": "22:20",
+    "action": "on",
+    "duration": 2,
+    "frequency": "daily",
+    "date": null,
+    "active": true,
+    "createdAt": "2025-07-22T16:48:56.195Z"
+  },
+  {
+    "id": 1753204288504,
+    "time": "22:44",
+    "action": "on",
+    "duration": 1,
+    "frequency": "daily",
+    "date": null,
+    "active": true,
+    "createdAt": "2025-07-22T17:11:28.504Z"
   }
 ]
