@@ -14,7 +14,7 @@ A modern React TypeScript application for monitoring and controlling agricultura
 ## 🏗️ Architecture
 
 ### Frontend (React TypeScript)
-- **Framework**: React 19 with TypeScript
+- **Framework**: React 18 with TypeScript
 - **Build Tool**: Vite
 - **State Management**: React Context API with useReducer
 - **Styling**: Modern CSS with CSS Grid and Flexbox
@@ -30,29 +30,24 @@ A modern React TypeScript application for monitoring and controlling agricultura
 ## 📁 Project Structure
 
 ```
-├── frontend/              # React TypeScript application
-│   ├── src/               # Source code
-│   ├── public/            # Static assets
-│   ├── node_modules/      # Frontend dependencies
-│   ├── performance-scripts.json # Performance analysis scripts
-│   └── package.json       # Frontend configuration
-├── backend/               # Node.js Express server
-│   ├── data/              # JSON data storage
-│   ├── config/            # Configuration files
-│   ├── node_modules/      # Backend dependencies
-│   ├── server.js          # Main server file
-│   └── package.json       # Backend configuration
-├── simulation/            # MQTT simulation scripts
-│   ├── mqtt_simulator.py  # MQTT testing simulator
-│   ├── package.json       # Simulation scripts
-│   └── README.md          # Simulation documentation
-├── docs/                  # Project documentation
-│   ├── IRRIGATION_HISTORY_FIX.md # Irrigation logging optimization
-│   ├── OPTIMIZATION_SUMMARY.md   # Performance optimizations
-│   └── README.md          # Documentation index
-├── .github/               # GitHub configuration
-├── .vscode/               # VS Code configuration
-└── package.json           # Root workspace configuration
+├── src/
+│   ├── components/         # React components
+│   │   ├── Dashboard.tsx   # Main dashboard view
+│   │   ├── Header.tsx      # App header with status
+│   │   ├── SensorCard.tsx  # Temperature/humidity display
+│   │   ├── MotorControl.tsx # Motor control interface
+│   │   ├── NextSchedule.tsx # Next schedule display
+│   │   ├── ScheduleManager.tsx # Schedule management
+│   │   ├── NotificationProvider.tsx # Notification system
+│   │   └── NotificationContainer.tsx # Notification UI
+│   ├── contexts/          # React context providers
+│   │   └── IoTContext.tsx # Main IoT state management
+│   ├── hooks/             # Custom React hooks
+│   │   ├── useSSEConnection.ts # Server-Sent Events hook
+│   │   └── useNotifications.ts # Notification hook
+│   ├── types/             # TypeScript type definitions
+│   │   └── index.ts       # All interface definitions
+│   ├── utils/             # Utility functions
 │   ├── App.tsx           # Main app component
 │   ├── App.css           # Global styles
 │   └── main.tsx          # App entry point
@@ -77,67 +72,43 @@ A modern React TypeScript application for monitoring and controlling agricultura
 
 1. **Clone and setup the project:**
    ```bash
-   cd eranga2
+   cd eranga
+   npm install
    ```
 
-2. **Install frontend and backend dependencies separately:**
+2. **Install backend dependencies:**
    ```bash
-   npm run install:all
+   cd backend
+   npm install
+   cd ..
    ```
 
-3. **Start both frontend and backend in development mode:**
+3. **Start the backend server:**
+   ```bash
+   cd backend
+   npm start
+   ```
+   The backend will run on `http://localhost:3000`
+
+4. **Start the frontend development server:**
    ```bash
    npm run dev
    ```
-   This will open two separate terminal windows:
-   - Backend runs on `http://localhost:3000`
-   - Frontend runs on `http://localhost:5173`
-
-### Alternative Startup Methods
-
-1. **PowerShell approach** (with better terminal management):
-   ```bash
-   npm run dev:ps
-   ```
-
-2. **Manual separate terminals**:
-   ```bash
-   # Terminal 1:
-   npm run dev:backend
-   
-   # Terminal 2:
-   npm run dev:frontend
-   ```
+   The frontend will run on `http://localhost:5173`
 
 ### Development Commands
 
 ```bash
-# Root workspace (no dependencies needed)
-npm run install:all      # Install frontend and backend dependencies
-npm run install:frontend # Install only frontend dependencies
-npm run install:backend  # Install only backend dependencies
-npm run dev              # Start both in separate terminal windows
-npm run dev:ps           # Start both using PowerShell (cleaner)
-npm run dev:frontend     # Start only frontend
-npm run dev:backend      # Start only backend
-npm run build            # Build frontend for production
-npm run start            # Start backend in production mode
-npm run clean            # Clean all node_modules
-npm run sim:mqtt         # Run MQTT simulator
+# Frontend
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run preview      # Preview production build
+npm run lint         # Run ESLint
 
-# Frontend only (in frontend/ directory)
-npm run dev              # Start development server
-npm run build            # Build for production
-npm run preview          # Preview production build
-npm run lint             # Run ESLint
-
-# Backend only (in backend/ directory)
-npm start                # Start production server
-npm run dev              # Start with nodemon (auto-restart)
-
-# Simulation (in simulation/ directory)
-npm run mqtt-sim         # Run MQTT simulator
-npm run install          # Install Python dependencies
+# Backend
+cd backend
+npm start            # Start production server
+npm run dev          # Start with nodemon (auto-restart)
 ```
 
 ## 🔧 Configuration
