@@ -8,3 +8,5 @@ export { NotificationContainer } from './NotificationContainer';
 export { NotificationProvider } from './NotificationProvider';
 export { ScheduleManager } from './ScheduleManager';
 export { SensorCard } from './SensorCard';
+export { Sidebar } from './Sidebar';
+export { AddDeviceModal } from './AddDeviceModal';
