@@ -1,9 +1,16 @@
 import { useState, useCallback } from 'react';
 import { IoTProvider } from './contexts/IoTContext';
-import { NotificationProvider, Header, Dashboard, ScheduleManager, Sidebar, AddDeviceModal } from './components';
+import { NotificationProvider, Header, Dashboard, ScheduleManager, DevicePanel, AddDeviceModal } from './components';
 import './App.css';
-import './components/Sidebar.css';
+import './components/DevicePanel.css';
 import './components/AddDeviceModal.css';
+
+interface Device {
+  id: string;
+  farmName: string;
+  deviceName: string;
+  addedAt: string;
+}
 
 export default function App() {
   // Test logging - this should always appear
@@ -11,11 +18,19 @@ export default function App() {
   
   const [currentView, setCurrentView] = useState<'dashboard' | 'schedules'>('dashboard');
   const [isAddDeviceModalOpen, setIsAddDeviceModalOpen] = useState(false);
+  const [devices, setDevices] = useState<Device[]>([]);
   
-  console.log('🔍 App render - isAddDeviceModalOpen:', isAddDeviceModalOpen);
+  const MAX_DEVICES = 10;
+  
+  console.log('🔍 App render - devices count:', devices.length);
 
-  const handleAddDevice = async (deviceData: any) => {
-    console.log('🔄 App.handleAddDevice called - will NOT call onClose internally');
+  const handleAddDevice = async (deviceData: { farmName: string; deviceName: string }) => {
+    console.log('🔄 App.handleAddDevice called');
+    
+    // Check device limit
+    if (devices.length >= MAX_DEVICES) {
+      throw new Error(`Maximum of ${MAX_DEVICES} devices allowed`);
+    }
     
     try {
       console.log('Adding new device:', deviceData);
@@ -23,22 +38,41 @@ export default function App() {
       // Simulate API call delay
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      console.log('✅ Device added successfully in App component:', deviceData);
-      // DO NOT call setIsAddDeviceModalOpen(false) here - let modal handle it
+      // Create new device with unique ID
+      const newDevice: Device = {
+        id: `device_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        farmName: deviceData.farmName,
+        deviceName: deviceData.deviceName,
+        addedAt: new Date().toISOString()
+      };
+      
+      // Add device to state
+      setDevices(prev => [...prev, newDevice]);
+      
+      console.log('✅ Device added successfully:', newDevice);
       return Promise.resolve();
     } catch (error) {
-      console.error('❌ Error adding device in App component:', error);
-      throw error; // Re-throw to let modal handle the error
+      console.error('❌ Error adding device:', error);
+      throw error;
     }
   };
 
-  const handleOpenModal = useCallback(() => {
-    console.log('🔧 App.handleOpenModal called - setting modal to true');
-    setIsAddDeviceModalOpen(true);
+  const handleRemoveDevice = useCallback((deviceId: string) => {
+    setDevices(prev => prev.filter(device => device.id !== deviceId));
+    console.log('🗑️ Device removed:', deviceId);
   }, []);
 
+  const handleOpenModal = useCallback(() => {
+    if (devices.length >= MAX_DEVICES) {
+      alert(`Maximum of ${MAX_DEVICES} devices allowed. Please remove a device before adding a new one.`);
+      return;
+    }
+    console.log('🔧 App.handleOpenModal called');
+    setIsAddDeviceModalOpen(true);
+  }, [devices.length]);
+
   const handleCloseModal = useCallback(() => {
-    console.log('🔧 App.handleCloseModal called - setting modal to false');
+    console.log('🔧 App.handleCloseModal called');
     setIsAddDeviceModalOpen(false);
   }, []);
 
@@ -46,7 +80,12 @@ export default function App() {
     <NotificationProvider>
       <IoTProvider>
         <div className="app">
-          <Sidebar onAddDevice={handleOpenModal} />
+          <DevicePanel 
+            devices={devices}
+            onRemoveDevice={handleRemoveDevice}
+            onAddDevice={handleOpenModal}
+            maxDevices={MAX_DEVICES}
+          />
           <div className="container">
             <Header />
             <main className="main-content">
