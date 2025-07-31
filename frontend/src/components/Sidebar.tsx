@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronRight, Plus, Settings, Home, Monitor } from 'lucide-react';
+import { ChevronRight, Plus } from 'lucide-react';
 
 interface SidebarProps {
   onAddDevice: () => void;
@@ -12,11 +12,15 @@ export function Sidebar({ onAddDevice }: SidebarProps) {
     console.log('Add Device button clicked');
     e.preventDefault();
     e.stopPropagation();
-    setIsOpen(false); // Close sidebar before opening modal
+    
+    // Close sidebar first
+    setIsOpen(false);
+    
+    // Add a longer delay to ensure sidebar animation completes
     setTimeout(() => {
       console.log('Calling onAddDevice after timeout');
-      onAddDevice(); // Slight delay to ensure sidebar closes first
-    }, 100);
+      onAddDevice();
+    }, 200);
   };
 
   return (
@@ -43,23 +47,6 @@ export function Sidebar({ onAddDevice }: SidebarProps) {
         <div className="sidebar-header">
           <h3>Device Manager</h3>
         </div>
-
-        <nav className="sidebar-nav">
-          <a href="#" className="sidebar-nav-item active">
-            <Home className="sidebar-nav-icon" />
-            <span>Dashboard</span>
-          </a>
-          
-          <a href="#" className="sidebar-nav-item">
-            <Monitor className="sidebar-nav-icon" />
-            <span>Devices</span>
-          </a>
-          
-          <a href="#" className="sidebar-nav-item">
-            <Settings className="sidebar-nav-icon" />
-            <span>Settings</span>
-          </a>
-        </nav>
 
         <div className="sidebar-actions">
           <button 
