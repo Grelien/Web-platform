@@ -1,6 +1,10 @@
 import { useState, useCallback } from 'react';
+import { AuthProvider } from './contexts/AuthContext';
 import { IoTProvider } from './contexts/IoTContext';
+import { useAuth } from './hooks/useAuth';
 import { NotificationProvider, Header, Dashboard, ScheduleManager, DevicePanel, AddDeviceModal } from './components';
+import { AuthContainer } from './components/AuthContainer';
+import { UserProfile } from './components/UserProfile';
 import './App.css';
 import './components/DevicePanel.css';
 import './components/AddDeviceModal.css';
@@ -12,12 +16,12 @@ interface Device {
   addedAt: string;
 }
 
-export default function App() {
-  // Test logging - this should always appear
-  console.log('🎯 APP COMPONENT LOADED - TEST LOG');
+function AppContent() {
+  const { isAuthenticated, isLoading } = useAuth();
   
   const [currentView, setCurrentView] = useState<'dashboard' | 'schedules'>('dashboard');
   const [isAddDeviceModalOpen, setIsAddDeviceModalOpen] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [devices, setDevices] = useState<Device[]>([]);
   
   const MAX_DEVICES = 10;
@@ -76,18 +80,37 @@ export default function App() {
     setIsAddDeviceModalOpen(false);
   }, []);
 
+  // Show loading screen while checking authentication
+  if (isLoading) {
+    return (
+      <div className="app-loading">
+        <div className="loading-spinner"></div>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  // Show authentication if not logged in
+  if (!isAuthenticated) {
+    return <AuthContainer />;
+  }
+
+  // Show main app if authenticated
   return (
     <NotificationProvider>
       <IoTProvider>
         <div className="app">
+          {showProfile && <UserProfile />}
+          
           <DevicePanel 
             devices={devices}
             onRemoveDevice={handleRemoveDevice}
             onAddDevice={handleOpenModal}
             maxDevices={MAX_DEVICES}
           />
+          
           <div className="container">
-            <Header />
+            <Header onShowProfile={() => setShowProfile(!showProfile)} />
             <main className="main-content">
               {currentView === 'dashboard' ? (
                 <Dashboard onShowSchedules={() => setCurrentView('schedules')} />
@@ -105,5 +128,13 @@ export default function App() {
         </div>
       </IoTProvider>
     </NotificationProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

@@ -7,9 +7,28 @@ const path = require('path');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const cron = require('node-cron');
+const helmet = require('helmet');
+
+// Import authentication routes and middleware
+const authRoutes = require('./routes/auth');
+const { verifyToken, optionalAuth } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Security middleware
+app.use(helmet({
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "https:"],
+            connectSrc: ["'self'"]
+        }
+    }
+}));
 
 // Middleware with optimization
 app.use(cors({
@@ -18,6 +37,9 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static('public', { maxAge: '1d' }));
+
+// Authentication routes
+app.use('/api/auth', authRoutes);
 
 // Configuration
 const config = {

@@ -10,3 +10,7 @@ export { ScheduleManager } from './ScheduleManager';
 export { SensorCard } from './SensorCard';
 export { AddDeviceModal } from './AddDeviceModal';
 export { DevicePanel } from './DevicePanel';
+export { AuthContainer } from './AuthContainer';
+export { Login } from './Login';
+export { Register } from './Register';
+export { UserProfile } from './UserProfile';
