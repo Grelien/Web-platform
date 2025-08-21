@@ -5,9 +5,6 @@ const { body } = require('express-validator');
 const User = require('../models/User');
 const {
     authLimiter,
-    validatePassword,
-    hashPassword,
-    comparePassword,
     generateToken,
     verifyToken,
     handleValidationErrors
@@ -15,12 +12,17 @@ const {
 
 const router = express.Router();
 
+// Helper function to generate a unique phone number
+function generatePhoneNumber() {
+    // Generate a random 10-digit phone number starting with area codes 555-599 (reserved for fiction)
+    const areaCode = Math.floor(Math.random() * 45) + 555; // 555-599
+    const exchange = Math.floor(Math.random() * 900) + 100; // 100-999
+    const number = Math.floor(Math.random() * 9000) + 1000; // 1000-9999
+    return `${areaCode}${exchange}${number}`;
+}
+
 // Validation rules
 const registerValidation = [
-    body('email')
-        .isEmail()
-        .normalizeEmail()
-        .withMessage('Please provide a valid email address'),
     body('firstName')
         .trim()
         .isLength({ min: 2, max: 50 })
@@ -28,69 +30,68 @@ const registerValidation = [
     body('lastName')
         .trim()
         .isLength({ min: 2, max: 50 })
-        .withMessage('Last name must be between 2 and 50 characters'),
-    body('password')
-        .isLength({ min: 8 })
-        .withMessage('Password must be at least 8 characters long')
+        .withMessage('Last name must be between 2 and 50 characters')
 ];
 
 const loginValidation = [
-    body('email')
-        .isEmail()
-        .normalizeEmail()
-        .withMessage('Please provide a valid email address'),
-    body('password')
-        .notEmpty()
-        .withMessage('Password is required')
+    body('phoneNumber')
+        .isLength({ min: 10, max: 10 })
+        .isNumeric()
+        .withMessage('Please provide a valid 10-digit phone number')
 ];
 
 // Register route
 router.post('/register', authLimiter, registerValidation, handleValidationErrors, async (req, res) => {
     try {
-        const { email, password, firstName, lastName } = req.body;
+        const { firstName, lastName } = req.body;
 
-        // Additional password validation
-        const passwordValidation = validatePassword(password);
-        if (!passwordValidation.valid) {
-            return res.status(400).json({
-                error: passwordValidation.message
-            });
-        }
-
-        // Hash password
-        const hashedPassword = await hashPassword(password);
+        // Generate a unique phone number
+        let phoneNumber;
+        let attempts = 0;
+        do {
+            phoneNumber = generatePhoneNumber();
+            attempts++;
+            if (attempts > 10) {
+                throw new Error('Could not generate unique phone number');
+            }
+        } while (await User.findByPhoneNumber(phoneNumber));
 
         // Create user
         const userData = {
-            email: email.toLowerCase(),
-            password: hashedPassword,
+            phoneNumber,
             firstName: firstName.trim(),
-            lastName: lastName.trim()
+            lastName: lastName.trim(),
+            email: `user${phoneNumber}@agriiot.com`, // Generate email for compatibility
+            password: 'temp123', // Temporary password since we don't use it
+            isActive: true
         };
 
         const newUser = await User.create(userData);
 
         // Generate token
-        const token = generateToken(newUser.id, newUser.email);
+        const token = generateToken(newUser.id, newUser.phoneNumber);
 
         // Update last login
         await User.updateLastLogin(newUser.id);
 
         res.status(201).json({
-            message: 'User registered successfully',
-            user: newUser.toJSON(),
-            token
+            message: 'Account created successfully',
+            user: {
+                id: newUser.id,
+                firstName: newUser.firstName,
+                lastName: newUser.lastName,
+                phoneNumber: newUser.phoneNumber,
+                isActive: newUser.isActive,
+                createdAt: newUser.createdAt,
+                lastLogin: newUser.lastLogin
+            },
+            token,
+            phoneNumber: phoneNumber // Return the generated phone number
         });
 
     } catch (error) {
         console.error('Registration error:', error);
         
-        if (error.message === 'User with this email already exists') {
-            return res.status(409).json({
-                error: 'An account with this email already exists'
-            });
-        }
-
         res.status(500).json({
             error: 'Registration failed. Please try again.'
         });
@@ -98,15 +99,22 @@ router.post('/register', authLimiter, registerValidation, handleValidationErrors
 });
 
 // Login route
-router.post('/login', authLimiter, loginValidation, handleValidationErrors, async (req, res) => {
+router.post('/login', /* authLimiter, */ loginValidation, handleValidationErrors, async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { phoneNumber } = req.body;
+        console.log('Login attempt with phone number:', phoneNumber);
 
-        // Find user
-        const user = await User.findByEmail(email);
+        // Find user by phone number
+        const user = await User.findByPhoneNumber(phoneNumber);
+        console.log('User found:', user ? 'Yes' : 'No');
+        
         if (!user) {
+            console.log('All users in database:');
+            const allUsers = await User.getAllUsers();
+            allUsers.forEach(u => console.log(`- ID: ${u.id}, Phone: ${u.phoneNumber}`));
+            
             return res.status(401).json({
-                error: 'Invalid email or password'
+                error: 'Phone number not found. Please check your number or create an account.'
             });
         }
 
@@ -117,26 +125,18 @@ router.post('/login', authLimiter, loginValidation, handleValidationErrors, asyn
             });
         }
 
-        // Compare password
-        const isPasswordValid = await comparePassword(password, user.password);
-        if (!isPasswordValid) {
-            return res.status(401).json({
-                error: 'Invalid email or password'
-            });
-        }
-
         // Generate token
-        const token = generateToken(user.id, user.email);
+        const token = generateToken(user.id, user.phoneNumber);
 
         // Update last login
         await User.updateLastLogin(user.id);
 
-        // Remove password from response
-        const { password: _, ...userWithoutPassword } = user;
+        // Remove sensitive data from response
+        const { password: _, email: __, ...userWithoutSensitiveData } = user;
 
         res.json({
             message: 'Login successful',
-            user: userWithoutPassword,
+            user: userWithoutSensitiveData,
             token
         });
 
@@ -158,9 +158,9 @@ router.get('/profile', verifyToken, async (req, res) => {
             });
         }
 
-        const { password: _, ...userWithoutPassword } = user;
+        const { password: _, email: __, ...userWithoutSensitiveData } = user;
         res.json({
-            user: userWithoutPassword
+            user: userWithoutSensitiveData
         });
 
     } catch (error) {
@@ -182,31 +182,15 @@ router.put('/profile', verifyToken, [
         .optional()
         .trim()
         .isLength({ min: 2, max: 50 })
-        .withMessage('Last name must be between 2 and 50 characters'),
-    body('email')
-        .optional()
-        .isEmail()
-        .normalizeEmail()
-        .withMessage('Please provide a valid email address')
+        .withMessage('Last name must be between 2 and 50 characters')
 ], handleValidationErrors, async (req, res) => {
     try {
-        const { firstName, lastName, email } = req.body;
+        const { firstName, lastName } = req.body;
         const userId = req.user.userId;
-
-        // Check if email is already taken by another user
-        if (email) {
-            const existingUser = await User.findByEmail(email);
-            if (existingUser && existingUser.id !== userId) {
-                return res.status(409).json({
-                    error: 'Email is already taken by another account'
-                });
-            }
-        }
 
         const updateData = {};
         if (firstName) updateData.firstName = firstName.trim();
         if (lastName) updateData.lastName = lastName.trim();
-        if (email) updateData.email = email.toLowerCase();
 
         const updatedUser = await User.updateById(userId, updateData);
         if (!updatedUser) {
@@ -215,10 +199,10 @@ router.put('/profile', verifyToken, [
             });
         }
 
-        const { password: _, ...userWithoutPassword } = updatedUser;
+        const { password: _, email: __, ...userWithoutSensitiveData } = updatedUser;
         res.json({
             message: 'Profile updated successfully',
-            user: userWithoutPassword
+            user: userWithoutSensitiveData
         });
 
     } catch (error) {
@@ -229,65 +213,8 @@ router.put('/profile', verifyToken, [
     }
 });
 
-// Change password
-router.put('/change-password', verifyToken, [
-    body('currentPassword')
-        .notEmpty()
-        .withMessage('Current password is required'),
-    body('newPassword')
-        .isLength({ min: 8 })
-        .withMessage('New password must be at least 8 characters long')
-], handleValidationErrors, async (req, res) => {
-    try {
-        const { currentPassword, newPassword } = req.body;
-        const userId = req.user.userId;
-
-        // Get user
-        const user = await User.findById(userId);
-        if (!user) {
-            return res.status(404).json({
-                error: 'User not found'
-            });
-        }
-
-        // Verify current password
-        const isCurrentPasswordValid = await comparePassword(currentPassword, user.password);
-        if (!isCurrentPasswordValid) {
-            return res.status(401).json({
-                error: 'Current password is incorrect'
-            });
-        }
-
-        // Validate new password
-        const passwordValidation = validatePassword(newPassword);
-        if (!passwordValidation.valid) {
-            return res.status(400).json({
-                error: passwordValidation.message
-            });
-        }
-
-        // Hash new password
-        const hashedNewPassword = await hashPassword(newPassword);
-
-        // Update password
-        await User.updateById(userId, { password: hashedNewPassword });
-
-        res.json({
-            message: 'Password changed successfully'
-        });
-
-    } catch (error) {
-        console.error('Password change error:', error);
-        res.status(500).json({
-            error: 'Failed to change password'
-        });
-    }
-});
-
-// Logout route (client-side token removal, but we can track it)
+// Logout route
 router.post('/logout', verifyToken, (req, res) => {
-    // In a real application, you might want to blacklist the token
-    // For now, we'll just send a success response
     res.json({
         message: 'Logged out successfully'
     });
@@ -299,7 +226,7 @@ router.get('/verify', verifyToken, (req, res) => {
         valid: true,
         user: {
             userId: req.user.userId,
-            email: req.user.email
+            phoneNumber: req.user.phoneNumber
         }
     });
 });

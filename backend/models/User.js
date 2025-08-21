@@ -9,6 +9,7 @@ const USERS_FILE = path.join(__dirname, '..', 'data', 'users.json');
 class User {
     constructor(data) {
         this.id = data.id || this.generateId();
+        this.phoneNumber = data.phoneNumber; // Primary identifier
         this.email = data.email;
         this.password = data.password; // Already hashed
         this.firstName = data.firstName;
@@ -52,6 +53,11 @@ class User {
         return users.find(user => user.email.toLowerCase() === email.toLowerCase());
     }
 
+    static async findByPhoneNumber(phoneNumber) {
+        const users = await this.loadUsers();
+        return users.find(user => user.phoneNumber === phoneNumber);
+    }
+
     static async findById(id) {
         const users = await this.loadUsers();
         return users.find(user => user.id === id);
@@ -60,13 +66,13 @@ class User {
     static async create(userData) {
         const users = await this.loadUsers();
         
-        // Check if user already exists
+        // Check if user already exists by phone number
         const existingUser = users.find(user => 
-            user.email.toLowerCase() === userData.email.toLowerCase()
+            user.phoneNumber === userData.phoneNumber
         );
         
         if (existingUser) {
-            throw new Error('User with this email already exists');
+            throw new Error('User with this phone number already exists');
         }
 
         const newUser = new User(userData);
@@ -128,6 +134,10 @@ class User {
 
     static validateName(name) {
         return name && name.trim().length >= 2 && name.trim().length <= 50;
+    }
+
+    static validatePhoneNumber(phoneNumber) {
+        return phoneNumber && phoneNumber.length === 10 && /^\d+$/.test(phoneNumber);
     }
 }
 

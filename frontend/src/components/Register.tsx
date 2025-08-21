@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Eye, EyeOff, UserPlus, Mail, Lock, User } from 'lucide-react';
+import { UserPlus, User } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import './Auth.css';
+import type { RegisterData } from '../types';
 
 interface RegisterProps {
   onSwitchToLogin: () => void;
@@ -9,15 +10,13 @@ interface RegisterProps {
 
 export function Register({ onSwitchToLogin }: RegisterProps) {
   const { register } = useAuth();
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<RegisterData>({
     firstName: '',
     lastName: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    phoneNumber: ''
   });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -25,29 +24,11 @@ export function Register({ onSwitchToLogin }: RegisterProps) {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: value.trim()
     }));
+    
     // Clear error when user starts typing
     if (error) setError('');
-  };
-
-  const validatePassword = (password: string): string | null => {
-    if (password.length < 8) {
-      return 'Password must be at least 8 characters long';
-    }
-    if (!/[A-Z]/.test(password)) {
-      return 'Password must contain at least one uppercase letter';
-    }
-    if (!/[a-z]/.test(password)) {
-      return 'Password must contain at least one lowercase letter';
-    }
-    if (!/\d/.test(password)) {
-      return 'Password must contain at least one number';
-    }
-    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-      return 'Password must contain at least one special character';
-    }
-    return null;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -55,27 +36,21 @@ export function Register({ onSwitchToLogin }: RegisterProps) {
     setIsLoading(true);
     setError('');
 
-    // Validation
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+    // Validate required fields
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.phoneNumber) {
+      setError('Please fill in all fields');
       setIsLoading(false);
       return;
     }
 
-    const passwordError = validatePassword(formData.password);
-    if (passwordError) {
-      setError(passwordError);
+    if (formData.firstName.length < 2 || formData.lastName.length < 2) {
+      setError('Names must be at least 2 characters long');
       setIsLoading(false);
       return;
     }
 
     try {
-      await register({
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        password: formData.password
-      });
+      await register(formData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {
@@ -91,7 +66,7 @@ export function Register({ onSwitchToLogin }: RegisterProps) {
             <UserPlus size={32} />
           </div>
           <h1>Create Account</h1>
-          <p>Join the agricultural IoT revolution</p>
+          <p>Enter your details to get started</p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
@@ -101,53 +76,52 @@ export function Register({ onSwitchToLogin }: RegisterProps) {
             </div>
           )}
 
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="firstName">First Name</label>
-              <div className="input-wrapper">
-                <User className="input-icon" size={20} />
-                <input
-                  type="text"
-                  id="firstName"
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleInputChange}
-                  placeholder="First name"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="lastName">Last Name</label>
-              <div className="input-wrapper">
-                <User className="input-icon" size={20} />
-                <input
-                  type="text"
-                  id="lastName"
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleInputChange}
-                  placeholder="Last name"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
+          <div className="form-group">
+            <label htmlFor="firstName">First Name</label>
+            <div className="input-wrapper">
+              <User className="input-icon" size={20} />
+              <input
+                type="text"
+                id="firstName"
+                name="firstName"
+                value={formData.firstName}
+                onChange={handleInputChange}
+                placeholder="John"
+                required
+                disabled={isLoading}
+                autoFocus
+              />
             </div>
           </div>
 
           <div className="form-group">
-            <label htmlFor="email">Email Address</label>
+            <label htmlFor="lastName">Last Name</label>
             <div className="input-wrapper">
-              <Mail className="input-icon" size={20} />
+              <User className="input-icon" size={20} />
+              <input
+                type="text"
+                id="lastName"
+                name="lastName"
+                value={formData.lastName}
+                onChange={handleInputChange}
+                placeholder="Doe"
+                required
+                disabled={isLoading}
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="email">Email</label>
+            <div className="input-wrapper">
+              <User className="input-icon" size={20} />
               <input
                 type="email"
                 id="email"
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
-                placeholder="Enter your email"
+                placeholder="example@example.com"
                 required
                 disabled={isLoading}
               />
@@ -157,57 +131,34 @@ export function Register({ onSwitchToLogin }: RegisterProps) {
           <div className="form-group">
             <label htmlFor="password">Password</label>
             <div className="input-wrapper">
-              <Lock className="input-icon" size={20} />
+              <User className="input-icon" size={20} />
               <input
-                type={showPassword ? 'text' : 'password'}
+                type="password"
                 id="password"
                 name="password"
                 value={formData.password}
                 onChange={handleInputChange}
-                placeholder="Create a password"
+                placeholder="********"
                 required
                 disabled={isLoading}
               />
-              <button
-                type="button"
-                className="password-toggle"
-                onClick={() => setShowPassword(!showPassword)}
-                disabled={isLoading}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
-            </div>
-            <div className="password-requirements">
-              <small>
-                Password must contain at least 8 characters, uppercase, lowercase, number, and special character
-              </small>
             </div>
           </div>
 
           <div className="form-group">
-            <label htmlFor="confirmPassword">Confirm Password</label>
+            <label htmlFor="phoneNumber">Phone Number</label>
             <div className="input-wrapper">
-              <Lock className="input-icon" size={20} />
+              <User className="input-icon" size={20} />
               <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                id="confirmPassword"
-                name="confirmPassword"
-                value={formData.confirmPassword}
+                type="tel"
+                id="phoneNumber"
+                name="phoneNumber"
+                value={formData.phoneNumber}
                 onChange={handleInputChange}
-                placeholder="Confirm your password"
+                placeholder="123-456-7890"
                 required
                 disabled={isLoading}
               />
-              <button
-                type="button"
-                className="password-toggle"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                disabled={isLoading}
-                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-              >
-                {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
             </div>
           </div>
 

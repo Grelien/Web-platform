@@ -1,33 +1,17 @@
 // contexts/AuthContext.tsx - Authentication context for user management
 
 import { createContext, useState, useEffect, type ReactNode } from 'react';
-
-interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  createdAt: string;
-  lastLogin: string | null;
-  role: string;
-}
+import type { User, RegisterData } from '../types';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (credentials: { email?: string; password?: string; phoneNumber?: string }) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => void;
   updateProfile: (data: Partial<User>) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
-}
-
-interface RegisterData {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
 }
 
 interface AuthProviderProps {
@@ -86,13 +70,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     checkAuthStatus();
   }, []);
 
-  const login = async (email: string, password: string): Promise<void> => {
+  const login = async (credentials: { email?: string; password?: string; phoneNumber?: string }): Promise<void> => {
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify(credentials)
     });
 
     const data = await response.json();

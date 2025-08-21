@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff, LogIn, Mail, Lock } from 'lucide-react';
+import { LogIn, Phone } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import './Auth.css';
 
@@ -10,21 +10,41 @@ interface LoginProps {
 export function Login({ onSwitchToRegister }: LoginProps) {
   const { login } = useAuth();
   const [formData, setFormData] = useState({
-    email: '',
-    password: ''
+    phoneNumber: ''
   });
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    // Format phone number as user types
+    if (name === 'phoneNumber') {
+      // Remove all non-digits
+      const digits = value.replace(/\D/g, '');
+      // Limit to 10 digits
+      const limitedDigits = digits.slice(0, 10);
+      // Format as (XXX) XXX-XXXX
+      let formattedNumber = limitedDigits;
+      if (limitedDigits.length >= 6) {
+        formattedNumber = `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3, 6)}-${limitedDigits.slice(6)}`;
+      } else if (limitedDigits.length >= 3) {
+        formattedNumber = `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3)}`;
+      }
+      
+      setFormData(prev => ({
+        ...prev,
+        [name]: formattedNumber
+      }));
+    }
+    
     // Clear error when user starts typing
     if (error) setError('');
+  };
+
+  const validatePhoneNumber = (phone: string): boolean => {
+    const digits = phone.replace(/\D/g, '');
+    return digits.length === 10;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,8 +52,19 @@ export function Login({ onSwitchToRegister }: LoginProps) {
     setIsLoading(true);
     setError('');
 
+    // Validate phone number
+    if (!validatePhoneNumber(formData.phoneNumber)) {
+      setError('Please enter a valid 10-digit phone number');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      await login(formData.email, formData.password);
+      // Extract digits only for API call
+      const phoneDigits = formData.phoneNumber.replace(/\D/g, '');
+      await login({
+        phoneNumber: phoneDigits
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -49,7 +80,7 @@ export function Login({ onSwitchToRegister }: LoginProps) {
             <LogIn size={32} />
           </div>
           <h1>Welcome Back</h1>
-          <p>Sign in to your agricultural IoT dashboard</p>
+          <p>Enter your phone number to access your dashboard</p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
@@ -60,46 +91,22 @@ export function Login({ onSwitchToRegister }: LoginProps) {
           )}
 
           <div className="form-group">
-            <label htmlFor="email">Email Address</label>
+            <label htmlFor="phoneNumber">Phone Number</label>
             <div className="input-wrapper">
-              <Mail className="input-icon" size={20} />
+              <Phone className="input-icon" size={20} />
               <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
+                type="tel"
+                id="phoneNumber"
+                name="phoneNumber"
+                value={formData.phoneNumber}
                 onChange={handleInputChange}
-                placeholder="Enter your email"
+                placeholder="(555) 123-4567"
                 required
                 disabled={isLoading}
+                autoFocus
               />
             </div>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
-            <div className="input-wrapper">
-              <Lock className="input-icon" size={20} />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                placeholder="Enter your password"
-                required
-                disabled={isLoading}
-              />
-              <button
-                type="button"
-                className="password-toggle"
-                onClick={() => setShowPassword(!showPassword)}
-                disabled={isLoading}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
-            </div>
+            <small className="input-hint">Enter your 10-digit phone number</small>
           </div>
 
           <button
@@ -125,7 +132,7 @@ export function Login({ onSwitchToRegister }: LoginProps) {
               onClick={onSwitchToRegister}
               disabled={isLoading}
             >
-              Sign Up
+              Create Account
             </button>
           </div>
         </form>
