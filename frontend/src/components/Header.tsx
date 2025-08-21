@@ -1,8 +1,14 @@
 import { useIoT } from '../contexts/IoTContext';
-import { Wifi, WifiOff } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { Wifi, WifiOff, User } from 'lucide-react';
 
-export function Header() {
+interface HeaderProps {
+  onShowProfile?: () => void;
+}
+
+export function Header({ onShowProfile }: HeaderProps) {
   const { state } = useIoT();
+  const { user } = useAuth();
 
   return (
     <header className="header">
@@ -17,20 +23,33 @@ export function Header() {
           </div>
         </div>
         
-        <div className="connection-status">
-          <div className={`connection-indicator ${state.mqttConnected ? 'connected' : 'disconnected'}`}>
-            {state.mqttConnected ? (
-              <>
-                <Wifi className="connection-icon" />
-                <span>Connected to Device</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="connection-icon" />
-                <span>Disconnected from Device</span>
-              </>
-            )}
+        <div className="header-right">
+          <div className="connection-status">
+            <div className={`connection-indicator ${state.mqttConnected ? 'connected' : 'disconnected'}`}>
+              {state.mqttConnected ? (
+                <>
+                  <Wifi className="connection-icon" />
+                  <span>Connected to Device</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="connection-icon" />
+                  <span>Disconnected from Device</span>
+                </>
+              )}
+            </div>
           </div>
+          
+          {user && onShowProfile && (
+            <button 
+              className="profile-button"
+              onClick={onShowProfile}
+              title="View Profile"
+            >
+              <User size={20} />
+              <span>{user.firstName}</span>
+            </button>
+          )}
         </div>
       </div>
     </header>
