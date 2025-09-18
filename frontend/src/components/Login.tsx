@@ -92,7 +92,7 @@ export function Login({ onSwitchToRegister }: LoginProps) {
 
           <div className="form-group">
             <label htmlFor="phoneNumber">Phone Number</label>
-            <div className="input-wrapper">
+            <div className="input-wrapper phone-input-wrapper">
               <Phone className="input-icon" size={20} />
               <input
                 type="tel"
@@ -100,10 +100,11 @@ export function Login({ onSwitchToRegister }: LoginProps) {
                 name="phoneNumber"
                 value={formData.phoneNumber}
                 onChange={handleInputChange}
-                placeholder="(555) 123-4567"
+                placeholder="0776384481"
                 required
                 disabled={isLoading}
                 autoFocus
+                className="phone-input"
               />
             </div>
             <small className="input-hint">Enter your 10-digit phone number</small>
