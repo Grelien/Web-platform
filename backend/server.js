@@ -677,10 +677,10 @@ function executeSchedule(schedule) {
 
 // API Routes
 
-// Serve the main HTML page
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+// Serve the main HTML page (disabled - frontend runs separately on Vite)
+// app.get('/', (req, res) => {
+//     res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// });
 
 // Server-Sent Events endpoint
 app.get('/api/events', (req, res) => {

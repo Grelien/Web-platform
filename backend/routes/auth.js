@@ -30,7 +30,11 @@ const registerValidation = [
     body('lastName')
         .trim()
         .isLength({ min: 2, max: 50 })
-        .withMessage('Last name must be between 2 and 50 characters')
+        .withMessage('Last name must be between 2 and 50 characters'),
+    body('phoneNumber')
+        .isLength({ min: 10, max: 10 })
+        .isNumeric()
+        .withMessage('Please provide a valid 10-digit phone number')
 ];
 
 const loginValidation = [
@@ -43,20 +47,17 @@ const loginValidation = [
 // Register route
 router.post('/register', authLimiter, registerValidation, handleValidationErrors, async (req, res) => {
     try {
-        const { firstName, lastName } = req.body;
+        const { firstName, lastName, phoneNumber } = req.body;
 
-        // Generate a unique phone number
-        let phoneNumber;
-        let attempts = 0;
-        do {
-            phoneNumber = generatePhoneNumber();
-            attempts++;
-            if (attempts > 10) {
-                throw new Error('Could not generate unique phone number');
-            }
-        } while (await User.findByPhoneNumber(phoneNumber));
+        // Check if phone number already exists
+        const existingUser = await User.findByPhoneNumber(phoneNumber);
+        if (existingUser) {
+            return res.status(400).json({
+                error: 'Phone number already registered. Please login instead.'
+            });
+        }
 
-        // Create user
+        // Create user with provided phone number
         const userData = {
             phoneNumber,
             firstName: firstName.trim(),
@@ -86,12 +87,19 @@ router.post('/register', authLimiter, registerValidation, handleValidationErrors
                 lastLogin: newUser.lastLogin
             },
             token,
-            phoneNumber: phoneNumber // Return the generated phone number
+            phoneNumber: phoneNumber // Return the user's phone number
         });
 
     } catch (error) {
         console.error('Registration error:', error);
-        
+
+        // Check for duplicate phone number error
+        if (error.message && error.message.includes('already exists')) {
+            return res.status(400).json({
+                error: 'Phone number already registered. Please login instead.'
+            });
+        }
+
         res.status(500).json({
             error: 'Registration failed. Please try again.'
         });
@@ -99,7 +107,7 @@ router.post('/register', authLimiter, registerValidation, handleValidationErrors
 });
 
 // Login route
-router.post('/login', /* authLimiter, */ loginValidation, handleValidationErrors, async (req, res) => {
+router.post('/login', authLimiter, loginValidation, handleValidationErrors, async (req, res) => {
     try {
         const { phoneNumber } = req.body;
         console.log('Login attempt with phone number:', phoneNumber);

@@ -17,27 +17,20 @@ export function Login({ onSwitchToRegister }: LoginProps) {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    
-    // Format phone number as user types
+
+    // For phone number, only keep digits (no formatting)
     if (name === 'phoneNumber') {
       // Remove all non-digits
       const digits = value.replace(/\D/g, '');
       // Limit to 10 digits
       const limitedDigits = digits.slice(0, 10);
-      // Format as (XXX) XXX-XXXX
-      let formattedNumber = limitedDigits;
-      if (limitedDigits.length >= 6) {
-        formattedNumber = `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3, 6)}-${limitedDigits.slice(6)}`;
-      } else if (limitedDigits.length >= 3) {
-        formattedNumber = `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3)}`;
-      }
-      
+
       setFormData(prev => ({
         ...prev,
-        [name]: formattedNumber
+        [name]: limitedDigits
       }));
     }
-    
+
     // Clear error when user starts typing
     if (error) setError('');
   };

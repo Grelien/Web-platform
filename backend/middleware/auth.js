@@ -5,9 +5,28 @@ const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const { validationResult } = require('express-validator');
 
-// JWT Secret (In production, use environment variable)
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secure-secret-key-change-in-production';
+// JWT Secret - MUST be set in production via environment variable
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = '7d';
+
+// Validate JWT secret is set
+if (!JWT_SECRET) {
+    console.error('❌ FATAL ERROR: JWT_SECRET environment variable is not set!');
+    console.error('⚠️  Set JWT_SECRET in your .env file or environment variables before running in production.');
+    console.error('⚠️  For development, use: JWT_SECRET=your-random-secure-secret-here');
+
+    // Exit in production, allow in development with warning
+    if (process.env.NODE_ENV === 'production') {
+        console.error('🛑 Cannot run in production without JWT_SECRET. Exiting...');
+        process.exit(1);
+    } else {
+        console.warn('⚠️  Using temporary JWT secret for DEVELOPMENT ONLY');
+        // Use a temporary secret only for development
+        module.exports.JWT_SECRET = 'dev-only-temp-secret-' + Date.now();
+    }
+} else {
+    module.exports.JWT_SECRET = JWT_SECRET;
+}
 
 // Rate limiting for auth endpoints
 const authLimiter = rateLimit({
@@ -60,13 +79,14 @@ const comparePassword = async (password, hashedPassword) => {
 
 // Generate JWT token
 const generateToken = (userId, email) => {
+    const secret = module.exports.JWT_SECRET || JWT_SECRET;
     return jwt.sign(
-        { 
-            userId, 
+        {
+            userId,
             email,
             timestamp: Date.now()
         },
-        JWT_SECRET,
+        secret,
         { expiresIn: JWT_EXPIRES_IN }
     );
 };
@@ -77,23 +97,24 @@ const verifyToken = (req, res, next) => {
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
     if (!token) {
-        return res.status(401).json({ 
-            error: 'Access denied. No token provided.' 
+        return res.status(401).json({
+            error: 'Access denied. No token provided.'
         });
     }
 
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
+        const secret = module.exports.JWT_SECRET || JWT_SECRET;
+        const decoded = jwt.verify(token, secret);
         req.user = decoded;
         next();
     } catch (error) {
         if (error.name === 'TokenExpiredError') {
-            return res.status(401).json({ 
-                error: 'Token expired. Please login again.' 
+            return res.status(401).json({
+                error: 'Token expired. Please login again.'
             });
         }
-        return res.status(403).json({ 
-            error: 'Invalid token.' 
+        return res.status(403).json({
+            error: 'Invalid token.'
         });
     }
 };
@@ -117,7 +138,8 @@ const optionalAuth = (req, res, next) => {
 
     if (token) {
         try {
-            const decoded = jwt.verify(token, JWT_SECRET);
+            const secret = module.exports.JWT_SECRET || JWT_SECRET;
+            const decoded = jwt.verify(token, secret);
             req.user = decoded;
         } catch (error) {
             // Silent fail for optional auth
@@ -135,6 +157,5 @@ module.exports = {
     generateToken,
     verifyToken,
     optionalAuth,
-    handleValidationErrors,
-    JWT_SECRET
+    handleValidationErrors
 };

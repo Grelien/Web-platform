@@ -100,7 +100,10 @@ export interface User {
   lastName: string;
   email: string;
   phoneNumber?: string;
+  role: 'user' | 'admin';
+  isActive: boolean;
   createdAt: string;
+  lastLogin: string | null;
 }
 
 export interface RegisterData {
