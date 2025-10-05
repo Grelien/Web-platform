@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python virtual environment
+.venv/
+
+# Project documentation
+CLAUDE.md
+AUTH_README.md
+backend/data/users.json
+setup.ps1
+setup.sh
+test-inputs.html
