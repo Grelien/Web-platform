@@ -29,10 +29,26 @@ export function Login({ onSwitchToRegister }: LoginProps) {
         ...prev,
         [name]: limitedDigits
       }));
-    }
 
-    // Clear error when user starts typing
-    if (error) setError('');
+      // Clear error when user starts typing
+      if (error) setError('');
+
+      // Show real-time validation feedback
+      if (limitedDigits.length > 0 && limitedDigits.length < 10) {
+        setError(`Phone number must be 10 digits (${limitedDigits.length}/10)`);
+      } else if (limitedDigits.length === 10) {
+        setError('');
+      }
+    } else {
+      // Handle other input types (if any in the future)
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+
+      // Clear error when user starts typing
+      if (error) setError('');
+    }
   };
 
   const validatePhoneNumber = (phone: string): boolean => {
