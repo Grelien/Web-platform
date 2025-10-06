@@ -39,14 +39,15 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background-image: 
+  background-image:
     radial-gradient(circle at 20% 80%, rgba(76, 175, 80, 0.3) 0%, transparent 50%),
     radial-gradient(circle at 80% 20%, rgba(33, 150, 243, 0.3) 0%, transparent 50%),
     radial-gradient(circle at 40% 40%, rgba(103, 58, 183, 0.2) 0%, transparent 50%);
   animation: floatBubbles 20s ease-in-out infinite;
 }
 
-.auth-blur-overlay {
+.auth-background::after {
+  content: '';
   position: absolute;
   top: 0;
   left: 0;

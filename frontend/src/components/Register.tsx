@@ -23,11 +23,21 @@ export function Register({ onSwitchToLogin }: RegisterProps) {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value.trim()
-    }));
-    
+
+    // For phone number, only keep digits
+    if (name === 'phoneNumber') {
+      const digits = value.replace(/\D/g, '');
+      setFormData(prev => ({
+        ...prev,
+        [name]: digits.slice(0, 10) // Limit to 10 digits
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value.trim()
+      }));
+    }
+
     // Clear error when user starts typing
     if (error) setError('');
   };
@@ -53,8 +63,8 @@ export function Register({ onSwitchToLogin }: RegisterProps) {
       setError('Please enter a password (minimum 6 characters)');
       return false;
     }
-    if (!formData.phoneNumber) {
-      setError('Please enter your phone number');
+    if (!formData.phoneNumber || formData.phoneNumber.length !== 10) {
+      setError('Please enter a valid 10-digit phone number');
       return false;
     }
     return true;
@@ -218,6 +228,7 @@ export function Register({ onSwitchToLogin }: RegisterProps) {
                     className="phone-input"
                   />
                 </div>
+                <small className="input-hint">Enter your 10-digit phone number (digits only)</small>
               </div>
             </>
           )}

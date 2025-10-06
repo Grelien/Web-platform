@@ -1,5 +1,16 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+frontend/dist/
+
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,29 +18,57 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+frontend/.env
+
+# Data files (user data, sessions)
+backend/data/users.json
+backend/data/irrigation-history.json
+backend/data/schedules.json
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+nul
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# Python virtual environment
-.venv/
+# OS files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
 
-# Project documentation
-CLAUDE.md
-AUTH_README.md
-backend/data/users.json
-setup.ps1
-setup.sh
-test-inputs.html
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary documentation (optional - uncomment if you want to ignore these)
+# OPTIMIZATION_SUMMARY.md
+# IRRIGATION_HISTORY_FIX.md
+# performance-scripts.json
+
+# Lock files (uncomment if you want to ignore lock files)
+# package-lock.json
+# yarn.lock

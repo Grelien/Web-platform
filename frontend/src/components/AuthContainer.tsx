@@ -8,10 +8,8 @@ export function AuthContainer() {
 
   return (
     <div className="auth-page">
-      <div className="auth-background">
-        <div className="auth-blur-overlay" />
-      </div>
-      
+      <div className="auth-background" />
+
       {isLogin ? (
         <Login onSwitchToRegister={() => setIsLogin(false)} />
       ) : (

@@ -17,29 +17,38 @@ export function Login({ onSwitchToRegister }: LoginProps) {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    
-    // Format phone number as user types
+
+    // For phone number, only keep digits (no formatting)
     if (name === 'phoneNumber') {
       // Remove all non-digits
       const digits = value.replace(/\D/g, '');
       // Limit to 10 digits
       const limitedDigits = digits.slice(0, 10);
-      // Format as (XXX) XXX-XXXX
-      let formattedNumber = limitedDigits;
-      if (limitedDigits.length >= 6) {
-        formattedNumber = `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3, 6)}-${limitedDigits.slice(6)}`;
-      } else if (limitedDigits.length >= 3) {
-        formattedNumber = `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3)}`;
-      }
-      
+
       setFormData(prev => ({
         ...prev,
-        [name]: formattedNumber
+        [name]: limitedDigits
       }));
+
+      // Clear error when user starts typing
+      if (error) setError('');
+
+      // Show real-time validation feedback
+      if (limitedDigits.length > 0 && limitedDigits.length < 10) {
+        setError(`Phone number must be 10 digits (${limitedDigits.length}/10)`);
+      } else if (limitedDigits.length === 10) {
+        setError('');
+      }
+    } else {
+      // Handle other input types (if any in the future)
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+
+      // Clear error when user starts typing
+      if (error) setError('');
     }
-    
-    // Clear error when user starts typing
-    if (error) setError('');
   };
 
   const validatePhoneNumber = (phone: string): boolean => {
