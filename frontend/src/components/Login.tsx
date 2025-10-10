@@ -71,10 +71,17 @@ export function Login({ onSwitchToRegister }: LoginProps) {
     try {
       // Extract digits only for API call
       const phoneDigits = formData.phoneNumber.replace(/\D/g, '');
+      console.log('🚀 Starting login for phone:', phoneDigits);
+      
+      const startTime = Date.now();
       await login({
         phoneNumber: phoneDigits
       });
+      
+      const endTime = Date.now();
+      console.log('✅ Login completed in:', endTime - startTime, 'ms');
     } catch (err) {
+      console.error('❌ Login failed:', err);
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setIsLoading(false);
