@@ -30,13 +30,14 @@ if (!JWT_SECRET) {
 
 // Rate limiting for auth endpoints
 const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // limit each IP to 5 requests per windowMs
+    windowMs: process.env.NODE_ENV === 'production' ? 15 * 60 * 1000 : 1 * 60 * 1000, // 15 min in prod, 1 min in dev
+    max: process.env.NODE_ENV === 'production' ? 5 : 1000, // 5 in production, 1000 in development
     message: {
         error: 'Too many authentication attempts, please try again later.'
     },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req, res) => process.env.NODE_ENV === 'development', // Skip rate limiting in development
 });
 
 // Password validation
@@ -68,7 +69,7 @@ const validatePassword = (password) => {
 
 // Hash password
 const hashPassword = async (password) => {
-    const saltRounds = 12;
+    const saltRounds = process.env.NODE_ENV === 'production' ? 12 : 8; // Faster in development
     return await bcrypt.hash(password, saltRounds);
 };
 

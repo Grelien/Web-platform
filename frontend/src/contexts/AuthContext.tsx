@@ -25,6 +25,16 @@ export { AuthContext };
 
 const API_BASE_URL = 'http://localhost:3000/api';
 
+// Timeout wrapper for fetch requests
+const fetchWithTimeout = (url: string, options: RequestInit, timeout = 5000): Promise<Response> => {
+  return Promise.race([
+    fetch(url, options),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Request timeout')), timeout)
+    )
+  ]);
+};
+
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,24 +47,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const token = localStorage.getItem('auth_token');
       if (token) {
         try {
-          const response = await fetch(`${API_BASE_URL}/auth/verify`, {
+          // Single API call to get profile (which also verifies the token)
+          const profileResponse = await fetchWithTimeout(`${API_BASE_URL}/auth/profile`, {
             headers: {
               'Authorization': `Bearer ${token}`
             }
-          });
+          }, 3000); // 3 second timeout
 
-          if (response.ok) {
-            // Get user profile
-            const profileResponse = await fetch(`${API_BASE_URL}/auth/profile`, {
-              headers: {
-                'Authorization': `Bearer ${token}`
-              }
-            });
-
-            if (profileResponse.ok) {
-              const { user } = await profileResponse.json();
-              setUser(user);
-            }
+          if (profileResponse.ok) {
+            const { user } = await profileResponse.json();
+            setUser(user);
           } else {
             // Token is invalid
             localStorage.removeItem('auth_token');
@@ -71,13 +73,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const login = async (credentials: { email?: string; password?: string; phoneNumber?: string }): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(credentials)
-    });
+    }, 5000); // 5 second timeout for login
 
     const data = await response.json();
 
@@ -91,13 +93,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const register = async (registerData: RegisterData): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/auth/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(registerData)
-    });
+    }, 5000); // 5 second timeout for registration
 
     const data = await response.json();
 
@@ -119,14 +121,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const token = localStorage.getItem('auth_token');
     if (!token) throw new Error('No authentication token');
 
-    const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/auth/profile`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify(updateData)
-    });
+    }, 5000);
 
     const data = await response.json();
 
@@ -141,14 +143,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const token = localStorage.getItem('auth_token');
     if (!token) throw new Error('No authentication token');
 
-    const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/auth/change-password`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({ currentPassword, newPassword })
-    });
+    }, 5000);
 
     const data = await response.json();
 

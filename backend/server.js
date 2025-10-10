@@ -1,5 +1,7 @@
 // server.js - Optimized Agricultural IoT Platform Backend
 
+require('dotenv').config(); // Load environment variables
+
 const express = require('express');
 const mqtt = require('mqtt');
 const cors = require('cors');
@@ -9,8 +11,17 @@ const fsSync = require('fs');
 const cron = require('node-cron');
 const helmet = require('helmet');
 
+// Import database connection
+const { connectDB } = require('./config/database');
+
+// Import models
+const Farm = require('./models/Farm.model');
+const SensorData = require('./models/SensorData.model');
+
 // Import authentication routes and middleware
 const authRoutes = require('./routes/auth');
+const farmRoutes = require('./routes/farms');
+const sensorDataRoutes = require('./routes/sensorData');
 const { verifyToken, optionalAuth } = require('./middleware/auth');
 
 const app = express();
@@ -40,6 +51,12 @@ app.use(express.static('public', { maxAge: '1d' }));
 
 // Authentication routes
 app.use('/api/auth', authRoutes);
+
+// Farm/Device routes
+app.use('/api/farms', farmRoutes);
+
+// Sensor data routes
+app.use('/api', sensorDataRoutes);
 
 // Configuration
 const config = {
@@ -82,7 +99,8 @@ let systemState = {
     metrics: {
         totalRequests: 0,
         mqttMessages: 0,
-        lastSaveTime: Date.now()
+        lastSaveTime: Date.now(),
+        lastSensorSaveTime: 0 // Track last time we saved sensor data to DB
     }
 };
 
@@ -157,47 +175,63 @@ mqttClient.on('reconnect', () => {
 
 // Optimized MQTT Message Handler
 const mqttMessageHandlers = {
-    'agri/sensors/temperature': (payload) => {
+    'agri/sensors/temperature': async (payload) => {
         const temperature = parseFloat(payload);
         if (!isNaN(temperature)) {
+            // Update in-memory state (for backward compatibility)
             systemState.sensorData.temperature = temperature;
             systemState.sensorData.lastUpdated = new Date();
             systemState.lastSensorDataTime = new Date();
             systemState.deviceActive = true;
+
+            // Update database
+            await updateFarmSensorData(temperature, undefined);
+
             broadcastSensorData();
         }
     },
-    
-    'agri/sensors/humidity': (payload) => {
+
+    'agri/sensors/humidity': async (payload) => {
         const humidity = parseFloat(payload);
         if (!isNaN(humidity)) {
+            // Update in-memory state (for backward compatibility)
             systemState.sensorData.humidity = humidity;
             systemState.sensorData.lastUpdated = new Date();
             systemState.lastSensorDataTime = new Date();
             systemState.deviceActive = true;
+
+            // Update database
+            await updateFarmSensorData(undefined, humidity);
+
             broadcastSensorData();
         }
     },
-    
-    'agri/motor/status': (payload) => {
+
+    'agri/motor/status': async (payload) => {
         try {
             const motorStatus = JSON.parse(payload);
             const newMotorState = motorStatus.status === 'ON';
             const oldMotorState = systemState.motorState;
-            
+
             systemState.motorState = newMotorState;
             addLog(`Motor confirmed: ${motorStatus.status}`);
-            
+
+            // Update database
+            await updateFarmMotorStatus(newMotorState);
+
             if (oldMotorState !== newMotorState) {
                 handleIrrigationStateChange(newMotorState);
             }
         } catch (error) {
             const newMotorState = payload === 'ON';
             const oldMotorState = systemState.motorState;
-            
+
             systemState.motorState = newMotorState;
             addLog(`Motor confirmed: ${payload}`);
-            
+
+            // Update database
+            await updateFarmMotorStatus(newMotorState);
+
             if (oldMotorState !== newMotorState) {
                 handleIrrigationStateChange(newMotorState);
             }
@@ -221,6 +255,66 @@ const mqttMessageHandlers = {
         }
     }
 };
+
+// Helper function to update farm sensor data in database
+async function updateFarmSensorData(temperature, humidity) {
+    try {
+        // For now, update the first active farm
+        // TODO: Implement device-to-farm mapping for multi-farm support
+        const farm = await Farm.findOne({ isActive: true }).sort({ createdAt: 1 });
+
+        if (farm) {
+            // Update current sensor data in farm
+            farm.sensorData.temperature = temperature !== undefined ? temperature : farm.sensorData.temperature;
+            farm.sensorData.humidity = humidity !== undefined ? humidity : farm.sensorData.humidity;
+            farm.sensorData.lastUpdated = new Date();
+            farm.deviceStatus.isOnline = true;
+            farm.deviceStatus.lastSeen = new Date();
+
+            await farm.save();
+
+            // Save historical sensor data (when we have both readings)
+            // Throttle: Save to DB every 30 seconds to avoid excessive writes
+            const now = Date.now();
+            const SAVE_INTERVAL = 30000; // 30 seconds
+
+            // Check if we have both temperature and humidity (from current farm state)
+            const hasCompleteData = farm.sensorData.temperature > 0 && farm.sensorData.humidity > 0;
+
+            if (hasCompleteData && (now - systemState.metrics.lastSensorSaveTime > SAVE_INTERVAL)) {
+                await SensorData.create({
+                    userId: farm.userId,
+                    farmId: farm._id,
+                    temperature: farm.sensorData.temperature,
+                    humidity: farm.sensorData.humidity,
+                    timestamp: new Date()
+                });
+                systemState.metrics.lastSensorSaveTime = now;
+                console.log(`📊 Saved sensor data: ${farm.sensorData.temperature}°C, ${farm.sensorData.humidity}% for farm "${farm.farmName}"`);
+            }
+
+            console.log(`✅ Updated farm "${farm.farmName}" sensor data: ${farm.sensorData.temperature}°C, ${farm.sensorData.humidity}%`);
+        }
+    } catch (error) {
+        console.error('❌ Error updating farm sensor data:', error);
+    }
+}
+
+// Helper function to update farm motor status in database
+async function updateFarmMotorStatus(isOn) {
+    try {
+        const farm = await Farm.findOne({ isActive: true }).sort({ createdAt: 1 });
+
+        if (farm) {
+            farm.motorStatus.isOn = isOn;
+            farm.motorStatus.lastChanged = new Date();
+            await farm.save();
+            console.log(`✅ Updated farm "${farm.farmName}" motor status: ${isOn ? 'ON' : 'OFF'}`);
+        }
+    } catch (error) {
+        console.error('❌ Error updating farm motor status:', error);
+    }
+}
 
 // Handle MQTT Messages - Optimized
 function handleMQTTMessage(topic, payload) {
@@ -546,8 +640,8 @@ function debouncedSaveHistory() {
 
 function loadSchedules() {
     try {
-        if (fs.existsSync(SCHEDULES_FILE)) {
-            const data = fs.readFileSync(SCHEDULES_FILE, 'utf8');
+        if (fsSync.existsSync(SCHEDULES_FILE)) {
+            const data = fsSync.readFileSync(SCHEDULES_FILE, 'utf8');
             systemState.schedules = JSON.parse(data);
             addLog('Schedules loaded from file');
             setupScheduleCronJobs();
@@ -561,8 +655,8 @@ function loadSchedules() {
 
 function loadIrrigationHistory() {
     try {
-        if (fs.existsSync(IRRIGATION_HISTORY_FILE)) {
-            const data = fs.readFileSync(IRRIGATION_HISTORY_FILE, 'utf8');
+        if (fsSync.existsSync(IRRIGATION_HISTORY_FILE)) {
+            const data = fsSync.readFileSync(IRRIGATION_HISTORY_FILE, 'utf8');
             systemState.irrigationHistory = JSON.parse(data);
             addLog('Irrigation history loaded from file');
         }
@@ -917,18 +1011,22 @@ app.delete('/api/schedules/:id', (req, res) => {
 });
 
 // Initialize and start server
-function initializeSystem() {
+async function initializeSystem() {
     addLog('System initializing...');
+
+    // Connect to MongoDB
+    await connectDB();
+
     loadSchedules();
     loadIrrigationHistory();
     addLog('System initialized successfully');
 }
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`MQTT Broker: ${MQTT_BROKER}`);
+    console.log(`MQTT Broker: ${config.MQTT_BROKER}`);
     addLog(`Server started on port ${PORT}`);
-    initializeSystem();
+    await initializeSystem();
 });
 
 // Graceful shutdown

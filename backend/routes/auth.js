@@ -2,7 +2,9 @@
 
 const express = require('express');
 const { body } = require('express-validator');
-const User = require('../models/User');
+const User = require('../models/User.model');
+const FallbackUserService = require('../fallback-user');
+const { getMongoStatus } = require('../config/database');
 const {
     authLimiter,
     generateToken,
@@ -49,8 +51,15 @@ router.post('/register', authLimiter, registerValidation, handleValidationErrors
     try {
         const { firstName, lastName, phoneNumber } = req.body;
 
+        let existingUser;
+        
         // Check if phone number already exists
-        const existingUser = await User.findByPhoneNumber(phoneNumber);
+        if (getMongoStatus()) {
+            existingUser = await User.findByPhoneNumber(phoneNumber);
+        } else {
+            existingUser = FallbackUserService.findByPhoneNumber(phoneNumber);
+        }
+        
         if (existingUser) {
             return res.status(400).json({
                 error: 'Phone number already registered. Please login instead.'
@@ -67,24 +76,35 @@ router.post('/register', authLimiter, registerValidation, handleValidationErrors
             isActive: true
         };
 
-        const newUser = await User.create(userData);
+        let newUser;
+        
+        if (getMongoStatus()) {
+            newUser = await User.create(userData);
+        } else {
+            newUser = FallbackUserService.create(userData);
+        }
 
         // Generate token
-        const token = generateToken(newUser.id, newUser.phoneNumber);
+        const token = generateToken(newUser._id || newUser.id, newUser.phoneNumber);
 
         // Update last login
-        await User.updateLastLogin(newUser.id);
+        if (getMongoStatus()) {
+            await User.updateLastLogin(newUser._id);
+        } else {
+            FallbackUserService.updateLastLogin(newUser._id || newUser.id);
+        }
 
         res.status(201).json({
             message: 'Account created successfully',
             user: {
-                id: newUser.id,
+                id: newUser._id || newUser.id,
                 firstName: newUser.firstName,
                 lastName: newUser.lastName,
                 phoneNumber: newUser.phoneNumber,
                 isActive: newUser.isActive,
                 createdAt: newUser.createdAt,
-                lastLogin: newUser.lastLogin
+                lastLogin: newUser.lastLogin,
+                role: newUser.role || 'user'
             },
             token,
             phoneNumber: phoneNumber // Return the user's phone number
@@ -112,15 +132,18 @@ router.post('/login', authLimiter, loginValidation, handleValidationErrors, asyn
         const { phoneNumber } = req.body;
         console.log('Login attempt with phone number:', phoneNumber);
 
-        // Find user by phone number
-        const user = await User.findByPhoneNumber(phoneNumber);
+        let user;
+        
+        // Use MongoDB if available, otherwise use fallback
+        if (getMongoStatus()) {
+            user = await User.findByPhoneNumber(phoneNumber);
+        } else {
+            user = FallbackUserService.findByPhoneNumber(phoneNumber);
+        }
+        
         console.log('User found:', user ? 'Yes' : 'No');
         
         if (!user) {
-            console.log('All users in database:');
-            const allUsers = await User.getAllUsers();
-            allUsers.forEach(u => console.log(`- ID: ${u.id}, Phone: ${u.phoneNumber}`));
-            
             return res.status(401).json({
                 error: 'Phone number not found. Please check your number or create an account.'
             });
@@ -134,17 +157,29 @@ router.post('/login', authLimiter, loginValidation, handleValidationErrors, asyn
         }
 
         // Generate token
-        const token = generateToken(user.id, user.phoneNumber);
+        const token = generateToken(user._id || user.id, user.phoneNumber);
 
         // Update last login
-        await User.updateLastLogin(user.id);
-
-        // Remove sensitive data from response
-        const { password: _, email: __, ...userWithoutSensitiveData } = user;
+        if (getMongoStatus()) {
+            User.updateLastLogin(user._id).catch(err => 
+                console.error('Failed to update last login:', err)
+            );
+        } else {
+            FallbackUserService.updateLastLogin(user._id || user.id);
+        }
 
         res.json({
             message: 'Login successful',
-            user: userWithoutSensitiveData,
+            user: {
+                id: user._id || user.id,
+                phoneNumber: user.phoneNumber,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                createdAt: user.createdAt,
+                lastLogin: new Date(),
+                isActive: user.isActive,
+                role: user.role || 'user'
+            },
             token
         });
 
@@ -159,16 +194,32 @@ router.post('/login', authLimiter, loginValidation, handleValidationErrors, asyn
 // Get current user profile
 router.get('/profile', verifyToken, async (req, res) => {
     try {
-        const user = await User.findById(req.user.userId);
+        let user;
+        
+        if (getMongoStatus()) {
+            user = await User.findById(req.user.userId);
+        } else {
+            user = FallbackUserService.findById(req.user.userId);
+        }
+        
         if (!user) {
             return res.status(404).json({
                 error: 'User not found'
             });
         }
 
-        const { password: _, email: __, ...userWithoutSensitiveData } = user;
+        // Return user data without sensitive information
         res.json({
-            user: userWithoutSensitiveData
+            user: {
+                id: user._id || user.id,
+                phoneNumber: user.phoneNumber,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                createdAt: user.createdAt,
+                lastLogin: user.lastLogin,
+                isActive: user.isActive,
+                role: user.role || 'user'
+            }
         });
 
     } catch (error) {
@@ -200,17 +251,32 @@ router.put('/profile', verifyToken, [
         if (firstName) updateData.firstName = firstName.trim();
         if (lastName) updateData.lastName = lastName.trim();
 
-        const updatedUser = await User.updateById(userId, updateData);
+        let updatedUser;
+        
+        if (getMongoStatus()) {
+            updatedUser = await User.updateById(userId, updateData);
+        } else {
+            updatedUser = FallbackUserService.updateById(userId, updateData);
+        }
+        
         if (!updatedUser) {
             return res.status(404).json({
                 error: 'User not found'
             });
         }
 
-        const { password: _, email: __, ...userWithoutSensitiveData } = updatedUser;
         res.json({
             message: 'Profile updated successfully',
-            user: userWithoutSensitiveData
+            user: {
+                id: updatedUser._id || updatedUser.id,
+                phoneNumber: updatedUser.phoneNumber,
+                firstName: updatedUser.firstName,
+                lastName: updatedUser.lastName,
+                createdAt: updatedUser.createdAt,
+                lastLogin: updatedUser.lastLogin,
+                isActive: updatedUser.isActive,
+                role: updatedUser.role || 'user'
+            }
         });
 
     } catch (error) {

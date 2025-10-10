@@ -31,11 +31,12 @@ A modern full-stack React TypeScript application for monitoring and controlling 
 
 ### Backend (Node.js)
 - **Runtime**: Node.js with Express
+- **Database**: MongoDB with Mongoose ODM
 - **Authentication**: JWT tokens with bcrypt password hashing
 - **Security**: Helmet.js, CORS, express-validator, rate limiting
 - **Communication**: MQTT for IoT devices, SSE for frontend
 - **Scheduling**: node-cron for automated tasks
-- **Data Storage**: JSON files for users, schedules, and irrigation history
+- **Data Storage**: MongoDB for users, farms, schedules, and irrigation history
 - **Location**: `backend/` directory
 
 ## 📁 Project Structure
@@ -74,16 +75,22 @@ Web-platform/
 │   └── vite.config.ts
 ├── backend/                    # Node.js backend
 │   ├── routes/
-│   │   └── auth.js            # Authentication routes
+│   │   ├── auth.js            # Authentication routes
+│   │   └── farms.js           # Farm/device management routes
 │   ├── middleware/
 │   │   └── auth.js            # Auth middleware & helpers
 │   ├── models/
-│   │   └── User.js            # User model
-│   ├── data/                  # JSON data storage
-│   │   ├── users.json         # User accounts
-│   │   ├── schedules.json     # Irrigation schedules
-│   │   └── irrigation-history.json # Irrigation logs
+│   │   ├── User.model.js      # MongoDB User model
+│   │   ├── Farm.model.js      # MongoDB Farm/Device model
+│   │   ├── Schedule.model.js  # MongoDB Schedule model
+│   │   └── IrrigationHistory.model.js  # MongoDB Irrigation History model
+│   ├── config/
+│   │   └── database.js        # MongoDB connection config
+│   ├── data/                  # Legacy JSON storage (deprecated)
+│   │   ├── schedules.json     # Will be migrated to MongoDB
+│   │   └── irrigation-history.json # Will be migrated to MongoDB
 │   ├── server.js              # Express server with MQTT
+│   ├── .env                   # Environment variables (not in git)
 │   └── package.json           # Backend dependencies
 ├── config/
 │   └── mqtt.json              # MQTT configuration
@@ -96,6 +103,7 @@ Web-platform/
 
 - **Node.js** (v18 or higher)
 - **npm** or **yarn**
+- **MongoDB** (v5.0 or higher) - [Installation Guide](MONGODB_SETUP.md)
 - **MQTT broker** (optional, uses senzmate.com by default)
 
 ### Installation
@@ -132,6 +140,10 @@ NODE_ENV=development
 
 # JWT Configuration (REQUIRED for production)
 JWT_SECRET=your-super-secure-random-secret-key-at-least-32-characters
+
+# MongoDB Configuration (REQUIRED)
+MONGODB_URI=mongodb://localhost:27017/agri-iot-platform
+# For MongoDB Atlas (cloud): mongodb+srv://username:password@cluster.mongodb.net/agri-iot-platform
 
 # MQTT Configuration (optional, defaults are set)
 MQTT_BROKER=mqtt://senzmate.com:1883
@@ -222,6 +234,18 @@ For testing purposes, you can use these credentials:
 - `GET /api/auth/profile` - Get user profile (requires auth)
 - `PUT /api/auth/profile` - Update user profile (requires auth)
 - `GET /api/auth/verify` - Verify JWT token
+
+### Farm/Device Management
+- `GET /api/farms` - Get all farms for logged-in user (requires auth)
+- `POST /api/farms` - Create new farm/device (requires auth)
+  ```json
+  {
+    "farmName": "My Farm",
+    "deviceName": "SAB80SO0095"
+  }
+  ```
+- `PUT /api/farms/:id` - Update farm details (requires auth)
+- `DELETE /api/farms/:id` - Delete farm (requires auth)
 
 ### Real-time Data
 - `GET /api/events` - Server-Sent Events stream for real-time updates
@@ -327,33 +351,81 @@ curl -X POST http://localhost:3000/api/test/sensor-data \
 - **Timeout Handling**: Sensor data timeout detection (15 seconds)
 - **Validation Errors**: Clear error messages for user inputs
 
-## 📊 Data Management
+## 📊 MongoDB Database Structure
 
-### User Data (`backend/data/users.json`)
-```json
+### Database: `agri-iot-platform`
+
+#### Collections:
+
+**1. `users` - User Accounts**
+```javascript
 {
-  "id": "user_1759666753928_547480e0996fc8ab",
-  "phoneNumber": "5587127089",
-  "firstName": "Jackshan",
-  "lastName": "Venujan",
-  "email": "user5587127089@agriiot.com",
-  "role": "user",
-  "isActive": true,
-  "createdAt": "2025-10-05T12:19:13.928Z",
-  "lastLogin": "2025-10-05T12:19:13.935Z"
+  _id: ObjectId("68e85f73462fe8f47c677b9f"),
+  phoneNumber: "0777777777",
+  firstName: "Test",
+  lastName: "User",
+  email: "user0777777777@agriiot.com",
+  password: "$2a$12$...", // Hashed
+  role: "user", // or "admin"
+  isActive: true,
+  lastLogin: ISODate("2025-10-10T01:20:51.501Z"),
+  createdAt: ISODate("2025-10-10T01:20:51.038Z"),
+  updatedAt: ISODate("2025-10-10T01:20:51.502Z")
 }
 ```
 
-### Irrigation History (`backend/data/irrigation-history.json`)
-- Tracks all irrigation sessions
-- Records start time, duration, and source (manual/schedule)
-- Limited to 500 most recent events
-- Auto-saves every 5 events
+**2. `farms` - Farm/Device Management**
+```javascript
+{
+  _id: ObjectId("68e864c800bbe4e6f6eba577"),
+  userId: ObjectId("68e85fd1462fe8f47c677ba3"), // Owner reference
+  farmName: "Venujan_Farm",
+  deviceName: "SAB80SO0095",
+  isActive: true,
+  createdAt: ISODate("2025-10-10T01:43:36.950Z"),
+  updatedAt: ISODate("2025-10-10T01:43:36.950Z")
+}
+```
 
-### Schedules (`backend/data/schedules.json`)
-- Daily or weekly schedules
-- Auto-disables weekly schedules after execution
-- Supports duration-based auto-off
+**3. `schedules` - Irrigation Schedules** (To be migrated)
+```javascript
+{
+  _id: ObjectId("..."),
+  userId: ObjectId("..."), // Owner reference
+  time: "08:00",
+  action: "on", // or "off"
+  duration: 30, // minutes
+  frequency: "daily", // or "weekly"
+  date: "2025-10-15", // for weekly schedules
+  active: true,
+  createdAt: ISODate("..."),
+  updatedAt: ISODate("...")
+}
+```
+
+**4. `irrigationhistories` - Irrigation History** (To be migrated)
+```javascript
+{
+  _id: ObjectId("..."),
+  userId: ObjectId("..."), // Owner reference
+  action: "COMPLETED", // or "ON", "OFF"
+  source: "manual", // or "schedule", "device_confirm"
+  duration: 30, // minutes
+  sensorData: {
+    temperature: 28.5,
+    humidity: 65.3
+  },
+  timestamp: ISODate("..."),
+  endTime: ISODate("..."),
+  scheduleId: ObjectId("...") // Reference if from schedule
+}
+```
+
+### Key Features:
+- **User Isolation**: Each farm/schedule/history is tied to a specific user via `userId`
+- **Timestamps**: Automatic `createdAt` and `updatedAt` on all documents
+- **Soft Deletes**: Farms use `isActive: false` instead of permanent deletion
+- **Indexes**: Optimized queries on `userId`, `phoneNumber`, and `createdAt`
 
 ## 📱 Mobile Support
 
