@@ -27,10 +27,19 @@ lerna-debug.log*
 backend/.env
 frontend/.env
 
-# Data files (user data, sessions)
+# Legacy data files (deprecated - now using MongoDB)
 backend/data/users.json
 backend/data/irrigation-history.json
 backend/data/schedules.json
+
+# MongoDB data (if running locally)
+data/db/
+mongodb/
+
+# Backup files
+*.backup
+*.bak
+frontend/src/App.tsx.backup
 
 # Temporary files
 *.tmp

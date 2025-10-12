@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
 import { IoTProvider } from './contexts/IoTContext';
 import { useAuth } from './hooks/useAuth';
@@ -9,51 +9,95 @@ import './App.css';
 import './components/DevicePanel.css';
 import './components/AddDeviceModal.css';
 
+const API_BASE_URL = 'http://localhost:3000/api';
+
 interface Device {
-  id: string;
+  _id: string;
   farmName: string;
   deviceName: string;
-  addedAt: string;
+  createdAt: string;
+  userId: string;
 }
 
 function AppContent() {
   const { isAuthenticated, isLoading } = useAuth();
-  
+
   const [currentView, setCurrentView] = useState<'dashboard' | 'schedules'>('dashboard');
   const [isAddDeviceModalOpen, setIsAddDeviceModalOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [devices, setDevices] = useState<Device[]>([]);
-  
+  const [isLoadingDevices, setIsLoadingDevices] = useState(false);
+
   const MAX_DEVICES = 10;
-  
+
   console.log('🔍 App render - devices count:', devices.length);
+
+  // Fetch devices when user logs in
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchDevices();
+    } else {
+      // Clear devices when user logs out
+      setDevices([]);
+    }
+  }, [isAuthenticated]);
+
+  const fetchDevices = async () => {
+    setIsLoadingDevices(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_BASE_URL}/farms`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const { data } = await response.json();
+        setDevices(data);
+        console.log('✅ Devices fetched:', data.length);
+      } else {
+        console.error('Failed to fetch devices');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching devices:', error);
+    } finally {
+      setIsLoadingDevices(false);
+    }
+  };
 
   const handleAddDevice = async (deviceData: { farmName: string; deviceName: string }) => {
     console.log('🔄 App.handleAddDevice called');
-    
+
     // Check device limit
     if (devices.length >= MAX_DEVICES) {
       throw new Error(`Maximum of ${MAX_DEVICES} devices allowed`);
     }
-    
+
     try {
       console.log('Adding new device:', deviceData);
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Create new device with unique ID
-      const newDevice: Device = {
-        id: `device_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-        farmName: deviceData.farmName,
-        deviceName: deviceData.deviceName,
-        addedAt: new Date().toISOString()
-      };
-      
+
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_BASE_URL}/farms`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(deviceData)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to add device');
+      }
+
+      const { data } = await response.json();
+
       // Add device to state
-      setDevices(prev => [...prev, newDevice]);
-      
-      console.log('✅ Device added successfully:', newDevice);
+      setDevices(prev => [...prev, data]);
+
+      console.log('✅ Device added successfully:', data);
       return Promise.resolve();
     } catch (error) {
       console.error('❌ Error adding device:', error);
@@ -61,9 +105,26 @@ function AppContent() {
     }
   };
 
-  const handleRemoveDevice = useCallback((deviceId: string) => {
-    setDevices(prev => prev.filter(device => device.id !== deviceId));
-    console.log('🗑️ Device removed:', deviceId);
+  const handleRemoveDevice = useCallback(async (deviceId: string) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_BASE_URL}/farms/${deviceId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to remove device');
+      }
+
+      setDevices(prev => prev.filter(device => device._id !== deviceId));
+      console.log('🗑️ Device removed:', deviceId);
+    } catch (error) {
+      console.error('❌ Error removing device:', error);
+      throw error;
+    }
   }, []);
 
   const handleOpenModal = useCallback(() => {
@@ -101,14 +162,19 @@ function AppContent() {
       <IoTProvider>
         <div className="app">
           {showProfile && <UserProfile />}
-          
-          <DevicePanel 
-            devices={devices}
+
+          <DevicePanel
+            devices={devices.map(d => ({
+              id: d._id,
+              farmName: d.farmName,
+              deviceName: d.deviceName,
+              addedAt: d.createdAt
+            }))}
             onRemoveDevice={handleRemoveDevice}
             onAddDevice={handleOpenModal}
             maxDevices={MAX_DEVICES}
           />
-          
+
           <div className="container">
             <Header onShowProfile={() => setShowProfile(!showProfile)} />
             <main className="main-content">
@@ -119,7 +185,7 @@ function AppContent() {
               )}
             </main>
           </div>
-          
+
           <AddDeviceModal
             isOpen={isAddDeviceModalOpen}
             onClose={handleCloseModal}
